@@ -1,0 +1,4 @@
+id,shot_id,acidity,bitterness,body,aroma,balance,finish,overall,notes
+tasting-1,shot-1,vive,faible,sirupeux,cacao équilibré,bien équilibré,longue,très bon,Crema dense
+tasting-2,shot-2,moyenne,moyenne,soyeux,noisette,stable,moyenne,bon,"léger tirant vers l'amer"
+tasting-3,shot-3,faible,moyenne,léger,caramel,juste,rapide,correct,manque d'intensité
