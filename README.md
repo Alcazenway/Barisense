@@ -254,3 +254,20 @@ Aucune donnée partagée par défaut
 MonEXpresso n’est pas un carnet de notes.
 
 C’est un outil d’aide à la décision, pensé pour transformer une pratique quotidienne en connaissance fiable.
+
+## Lancement simplifié (double-clic)
+
+Objectif : ouvrir Barisense via un simple raccourci qui pointe vers l’URL locale.
+
+1. **Démarrage en un double-clic**
+   - macOS / Linux : double-clique sur `start-local.sh` (ou lance `./start-local.sh` dans un terminal).
+   - Windows : double-clique sur `start-local.bat`.
+   - Le script installe les dépendances si besoin, démarre l’API FastAPI (port `8000`) et le frontend (port `4173`), puis ouvre automatiquement le navigateur sur `http://localhost:4173`.
+
+2. **Créer le raccourci/icone vers l’URL**
+   - Crée un favori ou un raccourci de bureau pointant vers `http://localhost:4173`.
+   - Tant que les fenêtres lancées par le script restent ouvertes, un double-clic sur ce raccourci ouvre l’application prête à l’emploi.
+
+3. **Arrêt**
+   - macOS / Linux : `Ctrl+C` dans le terminal du script.
+   - Windows : ferme les fenêtres « Barisense API » et « Barisense UI » ou `Ctrl+C` dans la fenêtre principale.
