@@ -1,0 +1,4 @@
+id,coffee_id,water_id,beverage_type,dose_g,yield_g,duration_s,grind
+shot-1,maya-mountain,volvic,Ristretto,18,32,27,6
+shot-2,maya-mountain,robinet,Expresso,18,38,29,7
+shot-3,rio-negro,volvic,Expresso,17.5,36,30,6.5
