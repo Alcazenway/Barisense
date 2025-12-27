@@ -13,7 +13,12 @@ from app.models.schemas import (
     Water,
     WaterCreate,
 )
-from app.services.analysis import compute_brew_ratio, compute_cost_per_shot, compute_sensory_mean
+from app.services.analysis import (
+    compute_brew_ratio,
+    compute_cost_per_shot,
+    compute_sensory_mean,
+    compute_weighted_sensory_mean,
+)
 
 
 class InMemoryRepository:
@@ -56,6 +61,9 @@ class InMemoryRepository:
     def list_shots(self) -> Iterable[Shot]:
         return self._shots.values()
 
+    def list_shots_for_coffee(self, coffee_id: UUID) -> list[Shot]:
+        return [shot for shot in self._shots.values() if shot.coffee_id == coffee_id]
+
     def add_shot(self, payload: ShotCreate) -> Shot:
         if payload.coffee_id not in self._coffees:
             raise ValueError("coffee_not_found")
@@ -72,9 +80,16 @@ class InMemoryRepository:
     def list_tastings(self) -> Iterable[Tasting]:
         return self._tastings.values()
 
+    def list_tastings_for_shot(self, shot_id: UUID) -> list[Tasting]:
+        return [tasting for tasting in self._tastings.values() if tasting.shot_id == shot_id]
+
     def add_tasting(self, payload: TastingCreate) -> Tasting:
         if payload.shot_id not in self._shots:
             raise ValueError("shot_not_found")
-        tasting = Tasting(**payload.model_dump(), sensory_mean=compute_sensory_mean(payload))
+        tasting = Tasting(
+            **payload.model_dump(),
+            sensory_mean=compute_sensory_mean(payload),
+            weighted_sensory_mean=compute_weighted_sensory_mean(payload),
+        )
         self._tastings[tasting.id] = tasting
         return tasting
