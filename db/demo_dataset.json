@@ -1,0 +1,130 @@
+{
+  "coffees": [
+    {
+      "id": "cebu-delta",
+      "name": "Cebu Delta",
+      "roaster": "Nomad",
+      "reference": "Lot 12",
+      "type": "grain",
+      "bag_weight_g": 250,
+      "price_eur": 13.5,
+      "purchase_date": "2024-11-10"
+    },
+    {
+      "id": "amber-sierra",
+      "name": "Amber Sierra",
+      "roaster": "April",
+      "reference": "Single",
+      "type": "grain",
+      "bag_weight_g": 250,
+      "price_eur": 16.0,
+      "purchase_date": "2024-11-18"
+    },
+    {
+      "id": "costa-aurora",
+      "name": "Costa Aurora",
+      "roaster": "Friedhats",
+      "reference": "Espresso",
+      "type": "grain",
+      "bag_weight_g": 1000,
+      "price_eur": 40.0,
+      "purchase_date": "2024-11-30"
+    }
+  ],
+  "waters": [
+    { "id": "volvic", "label": "Volvic", "source": "bouteille" },
+    { "id": "osmose", "label": "Osmosée", "source": "robinet" }
+  ],
+  "shots": [
+    {
+      "id": "shot-201",
+      "coffee_id": "cebu-delta",
+      "beverage_type": "Expresso",
+      "dose_g": 18.0,
+      "yield_g": 36.0,
+      "duration_s": 28,
+      "grind": "5.4",
+      "water_id": "volvic"
+    },
+    {
+      "id": "shot-202",
+      "coffee_id": "amber-sierra",
+      "beverage_type": "Ristretto",
+      "dose_g": 18.5,
+      "yield_g": 32.0,
+      "duration_s": 25,
+      "grind": "5.2",
+      "water_id": "osmose"
+    },
+    {
+      "id": "shot-203",
+      "coffee_id": "costa-aurora",
+      "beverage_type": "Expresso",
+      "dose_g": 19.0,
+      "yield_g": 41.0,
+      "duration_s": 30,
+      "grind": "6.0",
+      "water_id": "volvic"
+    },
+    {
+      "id": "shot-204",
+      "coffee_id": "costa-aurora",
+      "beverage_type": "Café long",
+      "dose_g": 18.0,
+      "yield_g": 55.0,
+      "duration_s": 31,
+      "grind": "6.2",
+      "water_id": "osmose"
+    }
+  ],
+  "tastings": [
+    {
+      "id": "tasting-501",
+      "shot_id": "shot-201",
+      "acidity": "vive",
+      "bitterness": "faible",
+      "body": "sirupeux",
+      "aroma": "jasmin",
+      "balance": "équilibre",
+      "finish": "longue",
+      "overall": "intense",
+      "notes": "Grand potentiel sur eau neutre"
+    },
+    {
+      "id": "tasting-502",
+      "shot_id": "shot-202",
+      "acidity": "croquante",
+      "bitterness": "absent",
+      "body": "léger",
+      "aroma": "agrumes",
+      "balance": "marqué",
+      "finish": "fruitée",
+      "overall": "intense",
+      "notes": "Réglage ristretto stable"
+    },
+    {
+      "id": "tasting-503",
+      "shot_id": "shot-203",
+      "acidity": "doux",
+      "bitterness": "moyen",
+      "body": "rond",
+      "aroma": "chocolat",
+      "balance": "équilibre",
+      "finish": "longue",
+      "overall": "marqué",
+      "notes": "Longueur harmonieuse"
+    },
+    {
+      "id": "tasting-504",
+      "shot_id": "shot-204",
+      "acidity": "moyen",
+      "bitterness": "faible",
+      "body": "fluide",
+      "aroma": "noix",
+      "balance": "équilibre",
+      "finish": "sucrée",
+      "overall": "doux",
+      "notes": "Bon pour extraction longue"
+    }
+  ]
+}
