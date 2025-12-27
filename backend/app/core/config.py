@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     allow_origins: list[str] = ["*"]
     version: str = "0.1.0"
+    database_url: str = "sqlite:///./barisense.db"
+    api_key_header: str = "X-API-Key"
+    api_key: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

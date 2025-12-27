@@ -8,14 +8,13 @@ Schémas, migrations et dataset de test.
 - Fournir un jeu de données ≥ 20 cafés et ≥ 100 shots pour valider les calculs.
 
 ## Choix techniques
-- **SGBD** : Postgres (requis pour les types `ENUM`, les colonnes générées et les fonctions `jsonb_*` du seed).
-- Les schémas utilisent des contraintes simples (CHECK 0-10 sur les scores) et des références fortes (`shots` → `coffees`/`waters`, `tastings`/`verdicts` → `shots`).
-- Les profils d’eau sont stockés avec les minéraux clés pour suivre l’impact sur l’extraction.
+- **SGBD** : Postgres (requis pour les `ENUM` et le support natif UUID).
+- Contraintes fortes (`CHECK 1-5` pour les scores sensoriels, FK en cascade) et index ciblés (`shots` par café/eau/type, `tastings` par shot, `verdicts` par statut).
+- Le backend peut fonctionner sur SQLite pour les tests rapides ; Postgres reste la cible de prod.
 
 ## Structure
-- `migrations/001_initial.sql` : création des tables `coffees`, `waters`, `shots`, `tastings`, `verdicts` et des `ENUM` `brew_method` / `verdict_status`.
-- `seeds/demo_dataset.sql` : dataset de démonstration (20 cafés, 6 profils d’eau, 100 shots, 100 dégustations, 100 verdicts).
-- `demo_dataset.json` : échantillon JSON (3 cafés, 2 eaux, 4 shots, 4 dégustations) pour tester rapidement les classements et filtres côté in-memory ou scripts.
+- `migrations/001_initial.sql` : création des tables `coffees`, `waters`, `shots`, `tastings`, `verdicts` avec leurs enums (`coffee_format`, `water_source`, `beverage_type`, `verdict_status`) et index nécessaires pour les filtres par eau et classements.
+- `seeds/demo_dataset.sql` : dataset de démonstration cohérent avec l’API actuelle (coffees/eaux/shots/tastings/verdicts).
 
 ## Exécution
 1. Appliquer la migration sur votre base Postgres :
