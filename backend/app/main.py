@@ -1,7 +1,7 @@
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import coffees, health, shots, tastings, waters
+from app.api.routes import analytics, coffees, health, shots, tastings, verdicts, waters
 from app.core.config import get_settings
 
 
@@ -26,6 +26,8 @@ def create_app() -> FastAPI:
     api_router.include_router(waters.router)
     api_router.include_router(shots.router)
     api_router.include_router(tastings.router)
+    api_router.include_router(verdicts.router)
+    api_router.include_router(analytics.router)
     app.include_router(api_router)
 
     return app

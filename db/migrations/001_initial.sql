@@ -1,90 +1,94 @@
--- Barisense - schéma initial Postgres
--- Cette migration définit les tables principales pour cafés, eaux, shots,
--- dégustations et verdicts afin d’assurer la traçabilité des réglages.
+-- Barisense - schéma aligné avec les modèles FastAPI/SQLAlchemy
+-- Entités : cafés, eaux, shots, dégustations, verdicts.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE coffees (
-    coffee_id       BIGSERIAL PRIMARY KEY,
-    name            TEXT        NOT NULL,
-    roaster         TEXT        NOT NULL,
-    origin          TEXT        NOT NULL,
-    variety         TEXT,
-    process         TEXT,
-    roast_level     TEXT        CHECK (roast_level IN ('light', 'medium', 'medium-dark', 'dark')),
-    roast_date      DATE,
-    altitude_meters INTEGER,
-    flavor_notes    TEXT[],
+DO $$ BEGIN
+    CREATE TYPE coffee_format AS ENUM ('grain', 'moulu');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE water_source AS ENUM ('robinet', 'bouteille');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE beverage_type AS ENUM ('ristretto', 'expresso', 'cafe_long');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE verdict_status AS ENUM ('racheter', 'a_affiner', 'en_observation', 'a_eviter');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS coffees (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name                TEXT        NOT NULL,
+    roaster             TEXT        NOT NULL,
+    reference           TEXT,
+    format              coffee_format NOT NULL,
+    weight_grams        INTEGER     NOT NULL CHECK (weight_grams > 0),
+    price_eur           NUMERIC(8,2) NOT NULL CHECK (price_eur > 0),
+    purchased_at        DATE        NOT NULL,
+    cost_per_shot_eur   NUMERIC(8,2) NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS waters (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    label       TEXT        NOT NULL,
+    source      water_source NOT NULL,
+    brand       TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS shots (
+    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    coffee_id               UUID        NOT NULL REFERENCES coffees(id) ON DELETE CASCADE,
+    water_id                UUID        REFERENCES waters(id) ON DELETE SET NULL,
+    beverage_type           beverage_type NOT NULL,
+    grind_setting           TEXT        NOT NULL,
+    dose_in_grams           NUMERIC(5,2) NOT NULL CHECK (dose_in_grams > 0),
+    beverage_weight_grams   NUMERIC(5,2) NOT NULL CHECK (beverage_weight_grams > 0),
+    extraction_time_seconds NUMERIC(5,2) NOT NULL CHECK (extraction_time_seconds > 0),
+    brew_ratio              NUMERIC(5,2) NOT NULL,
+    notes                   TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shots_coffee ON shots(coffee_id);
+CREATE INDEX IF NOT EXISTS idx_shots_water_beverage ON shots(water_id, beverage_type);
+
+CREATE TABLE IF NOT EXISTS tastings (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    shot_id         UUID        NOT NULL REFERENCES shots(id) ON DELETE CASCADE,
+    acidity_score   SMALLINT    NOT NULL CHECK (acidity_score BETWEEN 1 AND 5),
+    bitterness_score SMALLINT   NOT NULL CHECK (bitterness_score BETWEEN 1 AND 5),
+    body_score      SMALLINT    NOT NULL CHECK (body_score BETWEEN 1 AND 5),
+    aroma_score     SMALLINT    NOT NULL CHECK (aroma_score BETWEEN 1 AND 5),
+    balance_score   SMALLINT    NOT NULL CHECK (balance_score BETWEEN 1 AND 5),
+    finish_score    SMALLINT    NOT NULL CHECK (finish_score BETWEEN 1 AND 5),
+    overall_score   SMALLINT    NOT NULL CHECK (overall_score BETWEEN 1 AND 5),
+    sensory_mean    NUMERIC(3,2) NOT NULL,
+    comments        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE waters (
-    water_id            BIGSERIAL PRIMARY KEY,
-    name                TEXT        NOT NULL,
-    source              TEXT,
-    tds_ppm             NUMERIC(6,2),
-    hardness_ca_mg      NUMERIC(6,2),
-    alkalinity_hco3     NUMERIC(6,2),
-    ph                  NUMERIC(3,2),
-    sodium_mg_l         NUMERIC(6,2),
-    magnesium_mg_l      NUMERIC(6,2),
-    notes               TEXT,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE INDEX IF NOT EXISTS idx_tastings_shot ON tastings(shot_id);
+
+CREATE TABLE IF NOT EXISTS verdicts (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    coffee_id   UUID        NOT NULL REFERENCES coffees(id) ON DELETE CASCADE,
+    status      verdict_status NOT NULL,
+    rationale   TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_verdict_coffee UNIQUE (coffee_id)
 );
 
-CREATE TYPE brew_method AS ENUM ('espresso', 'pourover', 'aeropress', 'cold_brew', 'moka');
-
-CREATE TABLE shots (
-    shot_id             BIGSERIAL PRIMARY KEY,
-    coffee_id           BIGINT      NOT NULL REFERENCES coffees(coffee_id),
-    water_id            BIGINT      NOT NULL REFERENCES waters(water_id),
-    brew_method         brew_method NOT NULL,
-    brew_date           DATE        NOT NULL DEFAULT CURRENT_DATE,
-    dose_in_g           NUMERIC(5,2) NOT NULL CHECK (dose_in_g > 0),
-    yield_out_g         NUMERIC(5,2) NOT NULL CHECK (yield_out_g > 0),
-    brew_time_seconds   INTEGER      NOT NULL CHECK (brew_time_seconds > 0),
-    grind_setting       TEXT,
-    brew_temperature_c  NUMERIC(4,1),
-    water_temperature_c NUMERIC(4,1),
-    pressure_profile    JSONB,
-    refractometer_tds   NUMERIC(4,2),
-    extraction_yield    NUMERIC(4,2),
-    ratio               NUMERIC(5,2) GENERATED ALWAYS AS (
-        CASE WHEN dose_in_g > 0 THEN yield_out_g / dose_in_g END
-    ) STORED,
-    notes               TEXT,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE tastings (
-    tasting_id          BIGSERIAL PRIMARY KEY,
-    shot_id             BIGINT      NOT NULL REFERENCES shots(shot_id) ON DELETE CASCADE,
-    taster_name         TEXT,
-    aroma_score         SMALLINT    CHECK (aroma_score BETWEEN 0 AND 10),
-    acidity_score       SMALLINT    CHECK (acidity_score BETWEEN 0 AND 10),
-    sweetness_score     SMALLINT    CHECK (sweetness_score BETWEEN 0 AND 10),
-    bitterness_score    SMALLINT    CHECK (bitterness_score BETWEEN 0 AND 10),
-    body_score          SMALLINT    CHECK (body_score BETWEEN 0 AND 10),
-    aftertaste_score    SMALLINT    CHECK (aftertaste_score BETWEEN 0 AND 10),
-    balance_score       SMALLINT    CHECK (balance_score BETWEEN 0 AND 10),
-    overall_score       SMALLINT    CHECK (overall_score BETWEEN 0 AND 10),
-    comments            TEXT,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TYPE verdict_status AS ENUM ('excellent', 'good', 'needs_work', 'discard');
-
-CREATE TABLE verdicts (
-    verdict_id          BIGSERIAL PRIMARY KEY,
-    shot_id             BIGINT      NOT NULL UNIQUE REFERENCES shots(shot_id) ON DELETE CASCADE,
-    status              verdict_status NOT NULL,
-    headline            TEXT        NOT NULL,
-    rationale           TEXT,
-    recommended_action  TEXT,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_shots_coffee_water ON shots (coffee_id, water_id);
-CREATE INDEX idx_shots_brew_method ON shots (brew_method);
-CREATE INDEX idx_tastings_shot_id ON tastings (shot_id);
-CREATE INDEX idx_verdicts_status ON verdicts (status);
+CREATE INDEX IF NOT EXISTS idx_verdict_status ON verdicts(status);

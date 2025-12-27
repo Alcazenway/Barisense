@@ -9,9 +9,10 @@ API, logique métier et moteur de calcul de Barisense.
 
 ## Architecture actuelle
 - **FastAPI** pour l’API et les validations.
-- **Pydantic** pour les modèles métiers (café, shot, dégustation, eau).
-- Services dédiés pour les calculs (coût par shot, ratio d’extraction, moyenne sensorielle).
-- Dépôt mémoire pour prototyper les flux avant la couche de persistance réelle.
+- **Pydantic** pour les modèles métiers (café, shot, dégustation, eau, verdict).
+- **Dépôt en mémoire** prêt pour être remplacé par une persistance SQL (migrations Postgres fournies dans `/db`).
+- Services dédiés pour les calculs (coût par shot, ratio d’extraction, moyenne sensorielle, verdict).
+- Clé API simple (en-tête configurable) pour protéger les routes métiers.
 
 Arborescence :
 ```
@@ -44,6 +45,15 @@ pytest
 ```
 
 > Astuce : FastAPI expose une documentation interactive sur http://localhost:8000/docs.
+
+### Authentification simple
+Définir la variable `BARISENSE_API_KEY` pour activer la protection par clé API.
+Ensuite, inclure l’en-tête configuré (par défaut `X-API-Key`) dans chaque requête hors `/health`.
+
+### Base de données
+- Les migrations SQL Postgres se trouvent dans `/db/migrations`.
+- Les seeds de démo (cohérents avec le back) se trouvent dans `/db/seeds`.
+- Le backend fonctionne en mémoire par défaut ; branchement à une base SQL nécessitera de remplacer le dépôt par une implémentation persistante.
 
 ## Prochaines étapes
 - Brancher la persistance (SQL ou NoSQL) pour remplacer le dépôt en mémoire.

@@ -1,29 +1,20 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
 from typing import Annotated, Literal
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt
 
-SensoryScore = Annotated[int, Field(ge=1, le=5, description="Échelle sensorielle 1-5")]
+from app.models.entities import (
+    BeverageType,
+    CoffeeFormat,
+    VerdictStatus,
+    WaterSource,
+)
 
-
-class BeverageType(str, Enum):
-    RISTRETTO = "ristretto"
-    EXPRESSO = "expresso"
-    CAFE_LONG = "cafe_long"
-
-
-class WaterSource(str, Enum):
-    TAP = "robinet"
-    BOTTLED = "bouteille"
-
-
-class CoffeeFormat(str, Enum):
-    GRAIN = "grain"
-    MOULU = "moulu"
+SensoryLabel = Literal["insipide", "doux", "équilibré", "expressif", "intense"]
+SensoryLabelField = Annotated[SensoryLabel, Field(description="Libellé sensoriel 1-5 (jamais de chiffres)")]
 
 
 class CoffeeBase(BaseModel):
@@ -37,13 +28,15 @@ class CoffeeBase(BaseModel):
 
 
 class CoffeeCreate(CoffeeBase):
-    pass
+    """Payload pour créer ou mettre à jour un café."""
 
 
-class Coffee(CoffeeBase):
-    id: UUID = Field(default_factory=uuid4, description="Identifiant du lot")
+class CoffeeRead(CoffeeBase):
+    id: UUID
     cost_per_shot_eur: float = Field(..., description="Coût estimé par shot")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WaterBase(BaseModel):
@@ -53,12 +46,14 @@ class WaterBase(BaseModel):
 
 
 class WaterCreate(WaterBase):
-    pass
+    """Payload pour créer ou mettre à jour une eau."""
 
 
-class Water(WaterBase):
-    id: UUID = Field(default_factory=uuid4)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+class WaterRead(WaterBase):
+    id: UUID
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ShotBase(BaseModel):
@@ -73,32 +68,99 @@ class ShotBase(BaseModel):
 
 
 class ShotCreate(ShotBase):
-    pass
+    """Payload pour créer ou mettre à jour un shot."""
 
 
-class Shot(ShotBase):
-    id: UUID = Field(default_factory=uuid4)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    brew_ratio: float = Field(..., description="Ratio infusion (poids en tasse / dose)")
+class ShotRead(ShotBase):
+    id: UUID
+    brew_ratio: float
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TastingBase(BaseModel):
     shot_id: UUID = Field(..., description="Référence du shot dégusté")
-    acidity: SensoryScore
-    bitterness: SensoryScore
-    body: SensoryScore
-    aroma: SensoryScore
-    balance: SensoryScore
-    finish: SensoryScore
-    overall: SensoryScore
+    acidity_label: SensoryLabelField
+    bitterness_label: SensoryLabelField
+    body_label: SensoryLabelField
+    aroma_label: SensoryLabelField
+    balance_label: SensoryLabelField
+    finish_label: SensoryLabelField
+    overall_label: SensoryLabelField
     comments: str | None = Field(None, description="Notes libres ou rappel du ressenti humain")
 
 
 class TastingCreate(TastingBase):
-    pass
+    """Payload pour enregistrer une dégustation (libellés uniquement)."""
 
 
-class Tasting(TastingBase):
-    id: UUID = Field(default_factory=uuid4)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    sensory_mean: float = Field(..., description="Moyenne des scores sensoriels")
+class TastingRead(BaseModel):
+    id: UUID
+    shot_id: UUID
+    acidity_label: SensoryLabelField
+    bitterness_label: SensoryLabelField
+    body_label: SensoryLabelField
+    aroma_label: SensoryLabelField
+    balance_label: SensoryLabelField
+    finish_label: SensoryLabelField
+    overall_label: SensoryLabelField
+    mean_label: SensoryLabelField
+    verdict_label: Literal["racheter", "à affiner", "en observation", "à éviter"]
+    comments: str | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VerdictBase(BaseModel):
+    coffee_id: UUID
+    status: VerdictStatus
+    rationale: str | None = None
+
+
+class VerdictCreate(VerdictBase):
+    """Payload CRUD verdict."""
+
+
+class VerdictRead(VerdictBase):
+    id: UUID
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RankedCoffee(BaseModel):
+    position: int
+    coffee_id: UUID
+    name: str
+    roaster: str
+    score_label: SensoryLabel
+    verdict_label: str
+    water_filter: str | None = None
+    beverage_filter: str | None = None
+
+
+class QualityPriceInsight(BaseModel):
+    coffee_id: UUID
+    name: str
+    roaster: str
+    cost_per_shot_eur: float
+    quality_label: SensoryLabel
+    verdict_label: str
+    ratio_label: str
+
+
+class StabilityInsight(BaseModel):
+    coffee_id: UUID
+    name: str
+    roaster: str
+    stability: str
+    sample_size: int
+
+
+class RetestCandidate(BaseModel):
+    coffee_id: UUID
+    name: str
+    roaster: str
+    reason: str
