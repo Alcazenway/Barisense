@@ -7,14 +7,45 @@ API, logique métier et moteur de calcul de Barisense.
 - Stocker les scores sensoriels de manière numérique sans exposition directe.
 - Fournir des verdicts traçables et justifiables.
 
-## Pistes techniques
-- API REST/GraphQL avec authentification simple.
-- Services dédiés pour extraction, dégustation, analyse, classement et gestion de l’eau.
-- Couche de persistance connectée aux schémas `db`.
-- Jobs / scripts pour import/export et calculs périodiques si besoin.
+## Architecture actuelle
+- **FastAPI** pour l’API et les validations.
+- **Pydantic** pour les modèles métiers (café, shot, dégustation, eau).
+- Services dédiés pour les calculs (coût par shot, ratio d’extraction, moyenne sensorielle).
+- Dépôt mémoire pour prototyper les flux avant la couche de persistance réelle.
 
-## À faire
-- Initialiser le projet backend (framework, lint, tests).
-- Définir les modèles et DTOs pour cafés, shots, dégustations et eaux.
-- Implémenter les endpoints et le moteur de calcul des classements et verdicts.
+Arborescence :
+```
+backend/
+├── app/
+│   ├── api/routes/         # Endpoints versionnés (coffees, shots, tastings, waters)
+│   ├── core/               # Configuration et dépendances communes
+│   ├── models/             # Schémas Pydantic
+│   └── services/           # Calculs et dépôt en mémoire
+├── requirements.txt        # Dépendances runtime
+├── requirements-dev.txt    # Dépendances dev/tests
+└── tests/                  # Tests rapides (pytest + TestClient)
+```
 
+## Développement local
+1) Installer les dépendances :
+```bash
+cd backend
+python -m pip install -r requirements-dev.txt
+```
+
+2) Lancer l’API :
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+3) Exécuter les tests :
+```bash
+pytest
+```
+
+> Astuce : FastAPI expose une documentation interactive sur http://localhost:8000/docs.
+
+## Prochaines étapes
+- Brancher la persistance (SQL ou NoSQL) pour remplacer le dépôt en mémoire.
+- Ajouter l’authentification et la gestion des utilisateurs.
+- Traduire les calculs métier complets (classements, verdicts détaillés, effets de l’eau).
