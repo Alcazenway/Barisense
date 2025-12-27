@@ -199,6 +199,15 @@ Verdicts possibles
 
 🔄 En observation
 
+## Démarrage local rapide
+
+1. Prérequis : Python 3 (avec `pip`), Node.js et `npm`.
+2. Lancez le script adapté :
+   - macOS/Linux : `./start-local.sh`
+   - Windows : `start-local.bat`
+3. Le script installe/valide les dépendances, démarre l’API FastAPI sur `http://localhost:8000` et le frontend Vite sur `http://localhost:4173`, puis ouvre automatiquement votre navigateur sur `http://localhost:4173` (ajoutez-le en favori/raccourci si besoin).
+4. Pour arrêter les services, utilisez `Ctrl+C` dans le terminal ayant lancé le script ou fermez les fenêtres de console « Barisense API » et « Barisense UI » ouvertes par le script Windows.
+
 Chaque verdict est :
 
 justifié

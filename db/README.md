@@ -26,6 +26,18 @@ Schémas, migrations et dataset de test.
    psql "$DATABASE_URL" -f db/seeds/demo_dataset.sql
    ```
 
+3. Utiliser le JSON léger pour des tests locaux ou des imports rapides :
+   - Le fichier `db/demo_dataset.json` est prêt à l’emploi et peut être consommé par les utilitaires du dossier `scripts/` ou adapté pour précharger un dépôt en mémoire côté backend.
+   - Vous pouvez aussi regénérer un dataset à partir des CSV d’exemple :
+     ```bash
+     python -m scripts.cli import-csv \
+       --coffees scripts/examples/coffees.csv \
+       --shots scripts/examples/shots.csv \
+       --tastings scripts/examples/tastings.csv \
+       --waters scripts/examples/waters.csv \
+       --output db/demo_dataset.json
+     ```
+
 ## Notes
 - La colonne `ratio` des shots est générée automatiquement (`yield_out_g / dose_in_g`) pour faciliter les calculs.
 - Les verdicts sont dérivés des dégustations seedées : `excellent/good/needs_work/discard` selon le score global.

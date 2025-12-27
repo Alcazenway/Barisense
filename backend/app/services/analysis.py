@@ -6,6 +6,24 @@ from app.models.entities import VerdictStatus
 from app.models.schemas import ShotCreate
 
 REFERENCE_DOSE_GRAMS = 18.0
+SENSORY_LABEL_TO_SCORE = {
+    "absent": 1,
+    "faible": 2,
+    "leger": 2,
+    "léger": 2,
+    "doux": 3,
+    "moyen": 3,
+    "equilibre": 3,
+    "équilibre": 3,
+    "marque": 4,
+    "marqué": 4,
+    "prononce": 4,
+    "prononcé": 4,
+    "intense": 5,
+    "punchy": 5,
+    "sirupeux": 5,
+    "sirupé": 5,
+}
 
 SENSORY_LABEL_TO_SCORE = {
     "insipide": 1,
@@ -53,6 +71,38 @@ def compute_sensory_mean(scores: Iterable[int]) -> float:
 
 
 def verdict_from_mean(score: float) -> VerdictStatus:
+    scores = [
+        tasting.acidity,
+        tasting.bitterness,
+        tasting.body,
+        tasting.aroma,
+        tasting.balance,
+        tasting.finish,
+        tasting.overall,
+    ]
+    return round(mean(scores), 2)
+
+
+def label_to_score(label: str) -> int:
+    """Convert a human-friendly sensory label into a numeric score between 1 and 5.
+
+    The mapping is intentionally simple to keep the UI free of numbers while
+    preserving a deterministic, testable scale in the backend.
+    """
+
+    normalized = _normalize_label(label)
+
+    if normalized.isdigit():
+        parsed = int(normalized)
+        if 1 <= parsed <= 5:
+            return parsed
+    if normalized in SENSORY_LABEL_TO_SCORE:
+        return SENSORY_LABEL_TO_SCORE[normalized]
+
+    raise ValueError(f"Unknown sensory label: {label}")
+
+
+def verdict_from_mean(score: float) -> str:
     """Map a sensory mean to a simple verdict."""
     if score >= 4.5:
         return VerdictStatus.RACHETER
@@ -115,3 +165,13 @@ def mean_by_key(items: Iterable[tuple[object, float]]) -> dict[object, float]:
     for key, value in items:
         grouped[key].append(value)
     return {key: mean(values) for key, values in grouped.items()}
+        return "en observation"
+    return "à éviter"
+
+
+def _normalize_label(label: str) -> str:
+    return "".join(
+        ch
+        for ch in unicodedata.normalize("NFKD", label.strip().casefold())
+        if unicodedata.category(ch) != "Mn"
+    )

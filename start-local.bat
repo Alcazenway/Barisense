@@ -2,8 +2,8 @@
 setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
-set "BACKEND_PORT=8000"
-set "FRONTEND_PORT=4173"
+if not defined BACKEND_PORT set "BACKEND_PORT=8000"
+if not defined FRONTEND_PORT set "FRONTEND_PORT=4173"
 
 rem Détection de Python
 where python >nul 2>&1
@@ -40,7 +40,7 @@ if not exist node_modules (
 start "Barisense UI" npm run dev -- --host --port %FRONTEND_PORT%
 popd
 
-start "" http://localhost:%FRONTEND_PORT%
+start "Barisense" http://localhost:%FRONTEND_PORT%
 echo.
-echo Barisense est pret. Gardez les fenetres ouvertes pour laisser tourner l'application.
+echo Barisense est pret. Fermez les fenetres "Barisense API" et "Barisense UI" ou utilisez Ctrl+C dans ces consoles pour arreter.
 pause
