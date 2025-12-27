@@ -1,4 +1,5 @@
 export type CoffeeType = 'Grain' | 'Moulu';
+export type BeverageType = 'Ristretto' | 'Expresso' | 'Café long';
 
 export interface CoffeeLot {
   id: string;
@@ -14,7 +15,7 @@ export interface CoffeeLot {
 export interface ShotNote {
   id: string;
   coffee: string;
-  beverage: 'Ristretto' | 'Expresso' | 'Café long';
+  beverage: BeverageType;
   dose: number;
   yield: number;
   time: number;
@@ -33,4 +34,35 @@ export interface LeaderboardItem {
   position: number;
   beverage: 'Ristretto' | 'Expresso' | 'Global';
   tag: string;
+}
+
+export interface LeaderboardSlice {
+  id: string;
+  label: string;
+  description: string;
+  entries: LeaderboardItem[];
+}
+
+export interface JustifiedVerdict extends TastingVerdict {
+  beverage: BeverageType;
+  justification: string;
+  trace: string;
+  sensoryWords: string[];
+  water: string;
+}
+
+export interface AnalysisSignal {
+  endpoint: string;
+  label: string;
+  words: string[];
+  verdictWord: string;
+  trace: string;
+  focus: string;
+}
+
+export interface SensoryVocabulary {
+  aromas: string[];
+  mouthfeels: string[];
+  finishes: string[];
+  verdicts: TastingVerdict['verdict'][];
 }
