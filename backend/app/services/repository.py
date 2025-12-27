@@ -87,6 +87,9 @@ class Repository:
     def get_shot(self, shot_id: UUID) -> Shot | None:
         return self._shots.get(shot_id)
 
+    def list_shots_for_coffee(self, coffee_id: UUID) -> list[Shot]:
+        return [shot for shot in self._shots.values() if shot.coffee_id == coffee_id]
+
     def add_shot(self, payload: ShotCreate) -> Shot:
         if self.get_coffee(payload.coffee_id) is None:
             raise ValueError("coffee_not_found")
@@ -124,6 +127,9 @@ class Repository:
 
     def get_tasting(self, tasting_id: UUID) -> Tasting | None:
         return self._tastings.get(tasting_id)
+
+    def list_tastings_for_shot(self, shot_id: UUID) -> list[Tasting]:
+        return [tasting for tasting in self._tastings.values() if tasting.shot_id == shot_id]
 
     def add_tasting(self, payload: TastingCreate) -> Tasting:
         shot = self.get_shot(payload.shot_id)

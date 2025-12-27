@@ -43,6 +43,16 @@ class WaterBase(BaseModel):
     label: str = Field(..., description="Nom court pour différencier les eaux")
     source: WaterSource = Field(..., description="Robinet ou bouteille")
     brand: str | None = Field(None, description="Marque si bouteille")
+    mineralization_ppm: PositiveFloat | None = Field(
+        None, description="TDS ou minéralisation totale estimée en ppm"
+    )
+    hardness_ca_mg_l: PositiveFloat | None = Field(None, description="Dureté (CaCO3 mg/L)")
+    alkalinity_hco3_mg_l: PositiveFloat | None = Field(None, description="Alcalinité (HCO3 mg/L)")
+    ph: PositiveFloat | None = Field(None, description="pH mesuré")
+    filter_type: str | None = Field(
+        None,
+        description="Type de traitement ou de filtre (ex: Brita, osmose, bouteille)",
+    )
 
 
 class WaterCreate(WaterBase):
