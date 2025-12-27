@@ -50,6 +50,16 @@ class WaterBase(BaseModel):
     label: str = Field(..., description="Nom court pour différencier les eaux")
     source: WaterSource = Field(..., description="Robinet ou bouteille")
     brand: str | None = Field(None, description="Marque si bouteille")
+    mineralization_ppm: PositiveFloat | None = Field(
+        None, description="TDS ou minéralisation totale estimée en ppm"
+    )
+    hardness_ca_mg_l: PositiveFloat | None = Field(None, description="Dureté (CaCO3 mg/L)")
+    alkalinity_hco3_mg_l: PositiveFloat | None = Field(None, description="Alcalinité (HCO3 mg/L)")
+    ph: PositiveFloat | None = Field(None, description="pH mesuré")
+    filter_type: str | None = Field(
+        None,
+        description="Type de traitement ou de filtre (ex: Brita, osmose, bouteille)",
+    )
 
 
 class WaterCreate(WaterBase):
@@ -102,3 +112,65 @@ class Tasting(TastingBase):
     id: UUID = Field(default_factory=uuid4)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     sensory_mean: float = Field(..., description="Moyenne des scores sensoriels")
+    weighted_sensory_mean: float | None = Field(
+        None, description="Moyenne sensorielle pondérée par critère"
+    )
+
+
+class ExtractionSnapshot(BaseModel):
+    shot_id: UUID
+    beverage_type: BeverageType
+    grind_setting: str
+    brew_ratio: float
+    extraction_time_seconds: float
+    water_id: UUID | None
+    water_label: str | None
+    diagnosis: str
+    recommendations: list[str]
+    created_at: datetime
+
+
+class ParameterSuggestion(BaseModel):
+    beverage_type: BeverageType
+    recommended_ratio: float
+    recommended_extraction_time: float
+    suggested_grind: str | None
+    rationale: str
+
+
+class SensorySummary(BaseModel):
+    mean: float | None
+    weighted_mean: float | None
+    sample_size: int
+
+
+class GlobalScore(BaseModel):
+    score: float
+    verdict: Literal["racheter", "à affiner", "à éviter", "en observation"]
+    details: str
+
+
+class WaterImpact(BaseModel):
+    water_id: UUID
+    label: str
+    source: WaterSource
+    classification: str
+    impact_on_extraction: str
+    impact_on_sensory: str
+    average_brew_ratio: float | None
+    average_sensory_mean: float | None
+    rank: int
+
+
+class CoffeeAnalytics(BaseModel):
+    coffee: Coffee
+    extraction_history: list[ExtractionSnapshot]
+    parameter_suggestions: list[ParameterSuggestion]
+    sensory_summary: SensorySummary
+    global_score: GlobalScore
+    water_impacts: list[WaterImpact]
+
+
+class AnalyticsSummary(BaseModel):
+    coffees: list[CoffeeAnalytics]
+    water_rankings: list[WaterImpact]
