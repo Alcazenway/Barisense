@@ -73,7 +73,7 @@ for _ in range(6):
     time.sleep(1)
 
 webbrowser.open(url)
-print("Barisense est prêt. Appuyez sur Ctrl+C pour arrêter les services.")
+print("Barisense est prêt. Fermez les fenêtres ou utilisez Ctrl+C dans ce terminal pour arrêter les services.")
 PY
 
 wait
