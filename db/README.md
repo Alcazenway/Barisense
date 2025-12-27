@@ -15,6 +15,7 @@ Schémas, migrations et dataset de test.
 ## Structure
 - `migrations/001_initial.sql` : création des tables `coffees`, `waters`, `shots`, `tastings`, `verdicts` et des `ENUM` `brew_method` / `verdict_status`.
 - `seeds/demo_dataset.sql` : dataset de démonstration (20 cafés, 6 profils d’eau, 100 shots, 100 dégustations, 100 verdicts).
+- `demo_dataset.json` : échantillon JSON (3 cafés, 2 eaux, 4 shots, 4 dégustations) pour tester rapidement les classements et filtres côté in-memory ou scripts.
 
 ## Exécution
 1. Appliquer la migration sur votre base Postgres :
@@ -25,6 +26,18 @@ Schémas, migrations et dataset de test.
    ```bash
    psql "$DATABASE_URL" -f db/seeds/demo_dataset.sql
    ```
+
+3. Utiliser le JSON léger pour des tests locaux ou des imports rapides :
+   - Le fichier `db/demo_dataset.json` est prêt à l’emploi et peut être consommé par les utilitaires du dossier `scripts/` ou adapté pour précharger un dépôt en mémoire côté backend.
+   - Vous pouvez aussi regénérer un dataset à partir des CSV d’exemple :
+     ```bash
+     python -m scripts.cli import-csv \
+       --coffees scripts/examples/coffees.csv \
+       --shots scripts/examples/shots.csv \
+       --tastings scripts/examples/tastings.csv \
+       --waters scripts/examples/waters.csv \
+       --output db/demo_dataset.json
+     ```
 
 ## Notes
 - La colonne `ratio` des shots est générée automatiquement (`yield_out_g / dose_in_g`) pour faciliter les calculs.
