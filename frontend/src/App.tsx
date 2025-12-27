@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FormField } from './components/FormField';
+import { Navigation } from './components/Navigation';
 import { Pill } from './components/Pill';
 import { SectionCard } from './components/SectionCard';
 import { coffees, leaderboard, shots, tastingVerdicts } from './data/sampleData';
@@ -33,6 +34,40 @@ export default function App() {
   );
 
   const latestShot = shots[shots.length - 1];
+
+  const navigationItems = useMemo(
+    () => [
+      {
+        id: 'referentiel-cafe',
+        title: 'Référentiel Café',
+        description: 'Lots, prix et eau par défaut',
+        eyebrow: 'Collecte',
+        badge: <Pill tone="info">{coffees.length} cafés</Pill>,
+      },
+      {
+        id: 'journal-extraction',
+        title: 'Journal d’extraction',
+        description: 'Paramètres et ratio de vos shots',
+        eyebrow: 'Production',
+        badge: <Pill tone="info">{shots.length} notes</Pill>,
+      },
+      {
+        id: 'degustation-verdict',
+        title: 'Dégustation & verdict',
+        description: 'Retours sensoriels et décisions',
+        eyebrow: 'Sensoriel',
+        badge: <Pill tone="info">{tastingVerdicts.length} verdicts</Pill>,
+      },
+      {
+        id: 'classements',
+        title: 'Classements',
+        description: 'Synthèse rapide par boisson',
+        eyebrow: 'Synthèse',
+        badge: <Pill tone="info">Top 3</Pill>,
+      },
+    ],
+    [],
+  );
 
   const handleSubmit = (key: keyof DraftState) => (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -83,8 +118,11 @@ export default function App() {
         </div>
       </header>
 
+      <Navigation items={navigationItems} />
+
       <main className="grid">
         <SectionCard
+          id="referentiel-cafe"
           title="Référentiel Café"
           subtitle="Achat et coûts"
           action={draftState.coffeeStatus ? <Pill tone="success">{draftState.coffeeStatus}</Pill> : null}
@@ -166,6 +204,7 @@ export default function App() {
         </SectionCard>
 
         <SectionCard
+          id="journal-extraction"
           title="Journal d&apos;extraction"
           subtitle="Shot factuel"
           action={draftState.shotStatus ? <Pill tone="success">{draftState.shotStatus}</Pill> : null}
@@ -232,6 +271,7 @@ export default function App() {
         </SectionCard>
 
         <SectionCard
+          id="degustation-verdict"
           title="Dégustation & verdict"
           subtitle="Sensoriel"
           action={draftState.tastingStatus ? <Pill tone="success">{draftState.tastingStatus}</Pill> : null}
@@ -280,7 +320,7 @@ export default function App() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Classements" subtitle="Synthèse sensorielle">
+        <SectionCard id="classements" title="Classements" subtitle="Synthèse sensorielle">
           <p className="section-description">
             Visualise rapidement les cafés qui sortent du lot selon la boisson et les critères sensoriels collectés.
           </p>
