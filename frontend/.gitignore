@@ -1,6 +1,7 @@
 node_modules
 .DS_Store
 dist
+offline-dist
 vite.config.ts.timestamp
 .env
 .env.*

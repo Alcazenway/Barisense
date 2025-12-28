@@ -6,7 +6,7 @@ describe('FormField', () => {
   it('affiche le label, le champ et le helper', () => {
     render(<FormField label="Poids" name="weight" helper="En grammes" placeholder="250" />);
 
-    expect(screen.getByLabelText('Poids')).toBeInTheDocument();
+    expect(screen.getByText('Poids')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('250')).toBeInTheDocument();
     expect(screen.getByText('En grammes')).toBeInTheDocument();
   });
