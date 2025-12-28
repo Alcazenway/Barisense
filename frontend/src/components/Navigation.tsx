@@ -10,13 +10,30 @@ interface NavigationItem {
 
 interface NavigationProps {
   items: NavigationItem[];
+  activeId?: string;
+  onSelect?: (id: string) => void;
 }
 
-export function Navigation({ items }: NavigationProps) {
+export function Navigation({ items, activeId, onSelect }: NavigationProps) {
   return (
     <nav className="app-nav" aria-label="Navigation rapide">
       {items.map((item) => (
-        <a key={item.id} className="app-nav__item" href={`#${item.id}`}>
+        <a
+          key={item.id}
+          className={`app-nav__item${activeId === item.id ? ' app-nav__item--active' : ''}`}
+          href={`#${item.id}`}
+          onClick={(event) => {
+            if (!onSelect) return;
+            event.preventDefault();
+            onSelect(item.id);
+            requestAnimationFrame(() => {
+              const target = document.getElementById(item.id);
+              if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            });
+          }}
+        >
           <div>
             <p className="eyebrow">{item.eyebrow ?? 'Section'}</p>
             <h3>{item.title}</h3>

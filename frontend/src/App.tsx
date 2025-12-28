@@ -52,6 +52,8 @@ interface TastingFormState {
   water: string;
 }
 
+type SegmentKey = 'collecte' | 'analyse' | 'synthese';
+
 const beverageOptions: BeverageType[] = ['Ristretto', 'Expresso', 'Café long'];
 const coffeeTypes: CoffeeType[] = ['Grain', 'Moulu'];
 
@@ -78,6 +80,7 @@ export default function App() {
   const [draftState, setDraftState] = useState<DraftState>({});
   const [analysisFeed, setAnalysisFeed] = useState<AnalysisSignal[]>([]);
   const [activeLeaderboard, setActiveLeaderboard] = useState(leaderboardSlices[0]?.id ?? 'global');
+  const [activeSegment, setActiveSegment] = useState<SegmentKey>('collecte');
 
   const latestShot = shots[shots.length - 1];
 
@@ -145,38 +148,40 @@ export default function App() {
     [],
   );
 
+  const segments = useMemo(
+    () => ([
+      { id: 'collecte' as SegmentKey, label: 'Collecte', caption: 'Lots, shots et dégustations' },
+      { id: 'analyse' as SegmentKey, label: 'Analyses', caption: 'Traces API et verdicts' },
+      { id: 'synthese' as SegmentKey, label: 'Synthèse', caption: 'Classements et navigation' },
+    ]),
+    [],
+  );
+
   const navigationItems = useMemo(
     () => [
       {
-        id: 'referentiel-cafe',
-        title: 'Référentiel Café',
-        description: 'Lots, prix et eau par défaut',
-        eyebrow: 'Collecte',
+        id: 'collecte',
+        title: 'Collecte segmentée',
+        description: 'Lots, shots et dégustations dans un espace dédié',
+        eyebrow: 'Flux',
         badge: <Pill tone="info">{coffees.length} cafés</Pill>,
       },
       {
-        id: 'journal-extraction',
-        title: 'Journal d’extraction',
-        description: 'Paramètres et ratio de vos shots',
-        eyebrow: 'Production',
-        badge: <Pill tone="info">{shots.length} notes</Pill>,
-      },
-      {
-        id: 'degustation-verdict',
-        title: 'Dégustation & verdict',
-        description: 'Retours sensoriels et décisions',
-        eyebrow: 'Sensoriel',
+        id: 'analyse',
+        title: 'Analyses & décisions',
+        description: 'Signaux API, verdicts expliqués, traçabilité eau',
+        eyebrow: 'Lecture',
         badge: <Pill tone="info">{justifiedVerdicts.length} verdicts</Pill>,
       },
       {
-        id: 'classements',
-        title: 'Classements',
-        description: 'Synthèse rapide par boisson',
-        eyebrow: 'Synthèse',
+        id: 'synthese',
+        title: 'Synthèse & classements',
+        description: 'Vue condensée par boisson et objectifs',
+        eyebrow: 'Comparaison',
         badge: <Pill tone="info">{leaderboardSlices.length} vues</Pill>,
       },
     ],
-    [],
+    [coffees.length, justifiedVerdicts.length, leaderboardSlices.length],
   );
 
   const setFormStatus = (key: keyof DraftState) => {
@@ -316,473 +321,572 @@ export default function App() {
         </div>
       </header>
 
-      <Navigation items={navigationItems} />
+      <Navigation
+        items={navigationItems}
+        activeId={activeSegment}
+        onSelect={(id) => setActiveSegment(id as SegmentKey)}
+      />
 
-      <main className="grid">
-        <SectionCard
-          id="referentiel-cafe"
-          title="Référentiel Café"
-          subtitle="Achat et coûts"
-          action={draftState.coffeeStatus ? <Pill tone="success">{draftState.coffeeStatus}</Pill> : null}
-        >
-          <p className="section-description">
-            Renseigne le lot utilisé pour calculer les coûts par shot, le choix d’eau et connecter les futures analyses.
-          </p>
-          <form className="form-grid" onSubmit={handleCoffeeSubmit}>
-            <FormField
-              label="Torréfacteur"
-              name="roaster"
-              placeholder="Ex: Five Elephant"
-              required
-              value={coffeeForm.roaster}
-              onChange={updateCoffeeField('roaster')}
-              datalistId="roaster-list"
-              datalistOptions={roasterSuggestions}
-              autoComplete="organization"
-              error={coffeeErrors.roaster}
-            />
-            <FormField
-              label="Référence"
-              name="name"
-              placeholder="Nom du café"
-              required
-              value={coffeeForm.name}
-              onChange={updateCoffeeField('name')}
-              datalistId="coffee-list"
-              datalistOptions={coffeeNames}
-              autoComplete="off"
-              error={coffeeErrors.name}
-            />
-            <FormField
-              label="Type"
-              name="type"
-              as="select"
-              value={coffeeForm.type}
-              onChange={updateCoffeeField('type')}
-              error={coffeeErrors.type}
-            >
-              <option value="" disabled>Sélectionner</option>
-              {coffeeTypes.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </FormField>
-            <FormField
-              label="Poids du paquet (g)"
-              name="weight"
-              type="number"
-              min={0}
-              step={10}
-              placeholder="250"
-              helper="Le coût/shots est calculé automatiquement"
-              value={coffeeForm.weight}
-              onChange={updateCoffeeField('weight')}
-              error={coffeeErrors.weight}
-            />
-            <FormField
-              label="Prix payé (€)"
-              name="price"
-              type="number"
-              min={0}
-              step={0.1}
-              placeholder="14.5"
-              value={coffeeForm.price}
-              onChange={updateCoffeeField('price')}
-              error={coffeeErrors.price}
-            />
-            <FormField
-              label="Date d’achat"
-              name="purchaseDate"
-              type="date"
-              value={coffeeForm.purchaseDate}
-              onChange={updateCoffeeField('purchaseDate')}
-            />
-            <FormField
-              label="Eau par défaut"
-              name="water"
-              as="select"
-              value={coffeeForm.water}
-              onChange={updateCoffeeField('water')}
-              error={coffeeErrors.water}
-            >
-              {waterOptions.map((water) => (
-                <option key={water} value={water}>{water}</option>
-              ))}
-            </FormField>
-            <div className="form-actions">
-              <button type="submit">Enregistrer le lot</button>
-              <span className="hint">Validation immédiate, envoi API différé</span>
-            </div>
-          </form>
-          <div className="card-list">
-            {coffees.map((coffee) => (
-              <article key={coffee.id} className="mini-card">
-                <div className="mini-card__top">
-                  <div>
-                    <p className="eyebrow">{coffee.roaster}</p>
-                    <h3>{coffee.name}</h3>
-                  </div>
-                  <Pill tone={coffee.status === 'Approuvé' ? 'success' : coffee.status === 'À éviter' ? 'danger' : 'warning'}>
-                    {coffee.status}
-                  </Pill>
-                </div>
-                <dl className="stats">
-                  <div>
-                    <dt>Type</dt>
-                    <dd>{coffee.type}</dd>
-                  </div>
-                  <div>
-                    <dt>Coût/kg</dt>
-                    <dd>{formatCurrency(coffee.pricePerKg)}</dd>
-                  </div>
-                  <div>
-                    <dt>Coût / shot</dt>
-                    <dd>{formatCurrency(coffee.costPerShot)}</dd>
-                  </div>
-                  <div>
-                    <dt>Eau</dt>
-                    <dd>{coffee.water}</dd>
-                  </div>
-                </dl>
-              </article>
-            ))}
-          </div>
-        </SectionCard>
+      <div className="segment-switch" role="tablist" aria-label="Vues segmentées">
+        {segments.map((segment) => (
+          <button
+            key={segment.id}
+            type="button"
+            className={`segment-switch__button${segment.id === activeSegment ? ' is-active' : ''}`}
+            onClick={() => setActiveSegment(segment.id)}
+            role="tab"
+            aria-selected={segment.id === activeSegment}
+          >
+            <span className="segment-switch__label">{segment.label}</span>
+            <span className="segment-switch__caption">{segment.caption}</span>
+          </button>
+        ))}
+      </div>
 
-        <SectionCard
-          id="journal-extraction"
-          title="Journal d&apos;extraction"
-          subtitle="Shot factuel"
-          action={draftState.shotStatus ? <Pill tone="success">{draftState.shotStatus}</Pill> : null}
-        >
-          <p className="section-description">
-            Note uniquement les faits techniques : paramètres machine, ratio, eau. Un rappel sensoriel en mots aide à sécuriser
-            la cohérence sans jamais afficher de chiffres d’analyse.
-          </p>
-          <form className="form-grid" onSubmit={handleShotSubmit}>
-            <FormField
-              label="Café utilisé"
-              name="coffee"
-              as="select"
-              value={shotForm.coffee}
-              onChange={updateShotField('coffee')}
-              error={shotErrors.coffee}
-            >
-              <option value="" disabled>Choisir un café</option>
-              {coffees.map((coffee) => (
-                <option key={coffee.id} value={coffee.name}>{coffee.name}</option>
-              ))}
-            </FormField>
-            <FormField
-              label="Boisson"
-              name="beverage"
-              as="select"
-              value={shotForm.beverage}
-              onChange={updateShotField('beverage')}
-              error={shotErrors.beverage}
-            >
-              <option value="" disabled>Type d&apos;extraction</option>
-              {beverageOptions.map((beverage) => (
-                <option key={beverage} value={beverage}>{beverage}</option>
-              ))}
-            </FormField>
-            <FormField
-              label="Mouture"
-              name="grind"
-              type="number"
-              min={0}
-              step={0.1}
-              placeholder="6.0"
-              helper="Valeur machine, reste interne"
-              value={shotForm.grind}
-              onChange={updateShotField('grind')}
-            />
-            <FormField
-              label="Dose (g)"
-              name="dose"
-              type="number"
-              min={0}
-              step={0.1}
-              placeholder="18.0"
-              value={shotForm.dose}
-              onChange={updateShotField('dose')}
-              error={shotErrors.dose}
-            />
-            <FormField
-              label="Poids en tasse (g)"
-              name="yield"
-              type="number"
-              min={0}
-              step={0.1}
-              placeholder="36"
-              value={shotForm.yield}
-              onChange={updateShotField('yield')}
-              error={shotErrors.yield}
-            />
-            <FormField
-              label="Temps (s)"
-              name="time"
-              type="number"
-              min={0}
-              step={0.5}
-              placeholder="28"
-              value={shotForm.time}
-              onChange={updateShotField('time')}
-              error={shotErrors.time}
-            />
-            <FormField
-              label="Eau"
-              name="water"
-              as="select"
-              value={shotForm.water}
-              onChange={updateShotField('water')}
-              error={shotErrors.water}
-            >
-              {waterOptions.map((water) => (
-                <option key={water} value={water}>{water}</option>
-              ))}
-            </FormField>
-            <FormField
-              label="Repère sensoriel en mots"
-              name="sensoryWords"
-              placeholder="floral, velouté, doux"
-              helper="Alimente l’API sans chiffres"
-              value={shotForm.sensoryWords}
-              onChange={updateShotField('sensoryWords')}
-              datalistId="sensory-list"
-              datalistOptions={sensoryWords}
-            />
-            <div className="chips">
-              {waterOptions.map((water) => (
-                <button
-                  key={water}
-                  type="button"
-                  className={`chip${shotForm.water === water ? ' chip--active' : ''}`}
-                  onClick={() => setShotForm((previous) => ({ ...previous, water }))}
-                >
-                  {water}
-                </button>
-              ))}
-            </div>
-            <div className="form-actions">
-              <button type="submit">Enregistrer le shot</button>
-              <span className="hint">Diagnostics ratio et suggestions restent textuels</span>
-            </div>
-          </form>
-
-          <div className="card-list card-list--compact">
-            {shots.map((shot) => (
-              <article key={shot.id} className="mini-card mini-card--compact">
-                <div className="mini-card__top">
-                  <div>
-                    <p className="eyebrow">{shot.beverage}</p>
-                    <h3>{shot.coffee}</h3>
-                  </div>
-                  <span className="timestamp">{new Date(shot.date).toLocaleDateString('fr-FR')}</span>
-                </div>
-                <dl className="stats stats--wrap">
-                  <div>
-                    <dt>Ratio</dt>
-                    <dd>{shot.dose}g → {shot.yield}g</dd>
-                  </div>
-                  <div>
-                    <dt>Temps</dt>
-                    <dd>{shot.time}s</dd>
-                  </div>
-                  <div>
-                    <dt>Eau</dt>
-                    <dd>{shot.water}</dd>
-                  </div>
-                </dl>
-              </article>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          id="degustation-verdict"
-          title="Dégustation & verdict"
-          subtitle="Sensoriel"
-          action={draftState.tastingStatus ? <Pill tone="success">{draftState.tastingStatus}</Pill> : null}
-        >
-          <p className="section-description">
-            Jugements exprimés avec des mots uniquement. Les réponses proviennent des endpoints d’analyse et restent traçables
-            (eau, shot, arômes) sans affichage numérique.
-          </p>
-          <form className="form-grid" onSubmit={handleTastingSubmit}>
-            <FormField
-              label="Café dégusté"
-              name="tastingCoffee"
-              as="select"
-              value={tastingForm.coffee}
-              onChange={updateTastingField('coffee')}
-              error={tastingErrors.coffee}
-            >
-              <option value="" disabled>Choisir un café</option>
-              {coffees.map((coffee) => (
-                <option key={coffee.id} value={coffee.name}>{coffee.name}</option>
-              ))}
-            </FormField>
-            <FormField
-              label="Arômes dominants"
-              name="aromas"
-              placeholder="Fruits jaunes, miel"
-              value={tastingForm.aromas}
-              onChange={updateTastingField('aromas')}
-              datalistId="aroma-list"
-              datalistOptions={sensoryVocabulary.aromas}
-              error={tastingErrors.aromas}
-            />
-            <FormField
-              label="Texture"
-              name="mouthfeel"
-              placeholder="Fluide / rond / sirupeux"
-              value={tastingForm.mouthfeel}
-              onChange={updateTastingField('mouthfeel')}
-              datalistId="mouthfeel-list"
-              datalistOptions={sensoryVocabulary.mouthfeels}
-              error={tastingErrors.mouthfeel}
-            />
-            <FormField
-              label="Finale"
-              name="finish"
-              placeholder="Longueur harmonieuse"
-              value={tastingForm.finish}
-              onChange={updateTastingField('finish')}
-              datalistId="finish-list"
-              datalistOptions={sensoryVocabulary.finishes}
-              error={tastingErrors.finish}
-            />
-            <FormField
-              label="Verdict"
-              name="verdict"
-              as="select"
-              value={tastingForm.verdict}
-              onChange={updateTastingField('verdict')}
-              error={tastingErrors.verdict}
-            >
-              <option value="" disabled>Choisir une issue</option>
-              {sensoryVocabulary.verdicts.map((verdict) => (
-                <option key={verdict} value={verdict}>{verdict}</option>
-              ))}
-            </FormField>
-            <FormField
-              label="Commentaire en mots"
-              name="comment"
-              as="textarea"
-              rows={3}
-              placeholder="Décision motivée, sans chiffres"
-              value={tastingForm.comment}
-              onChange={updateTastingField('comment')}
-            />
-            <FormField
-              label="Eau utilisée"
-              name="tastingWater"
-              as="select"
-              value={tastingForm.water}
-              onChange={updateTastingField('water')}
-              error={tastingErrors.water}
-            >
-              {waterOptions.map((water) => (
-                <option key={water} value={water}>{water}</option>
-              ))}
-            </FormField>
-            <div className="form-actions">
-              <button type="submit">Enregistrer la dégustation</button>
-              <span className="hint">La décision reste textuelle et traçable</span>
-            </div>
-          </form>
-
-          <div className="analysis-grid">
-            {analysisFeed.length === 0 ? (
-              <p className="muted">Connexion aux endpoints d’analyse en cours…</p>
-            ) : (
-              analysisFeed.map((signal) => (
-                <article key={signal.endpoint} className="mini-card analysis-card">
-                  <div className="mini-card__top">
-                    <div>
-                      <p className="eyebrow">{signal.label}</p>
-                      <h3>{signal.verdictWord}</h3>
-                    </div>
-                    <Pill tone="info">API {signal.endpoint}</Pill>
-                  </div>
-                  <p className="muted">{signal.trace}</p>
-                  <div className="chips">
-                    {signal.words.map((word) => (
-                      <span key={word} className="chip chip--ghost">{word}</span>
-                    ))}
-                  </div>
-                  <p className="analysis-focus">{signal.focus}</p>
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="verdict-grid">
-            {justifiedVerdicts.map((verdict) => (
-              <article key={verdict.coffee} className="mini-card verdict">
-                <div className="mini-card__top">
-                  <div>
-                    <p className="eyebrow">Verdict {verdict.beverage}</p>
-                    <h3>{verdict.coffee}</h3>
-                  </div>
-                  <Pill tone={verdict.verdict === 'Racheter' ? 'success' : verdict.verdict === 'À éviter' ? 'danger' : 'warning'}>
-                    {verdict.verdict}
-                  </Pill>
-                </div>
-                <ul className="verdict__list">
-                  {verdict.highlights.map((highlight) => (
-                    <li key={highlight}>{highlight}</li>
-                  ))}
-                </ul>
-                <div className="verdict__trace">
-                  <p className="muted">{verdict.justification}</p>
-                  <p className="trace">{verdict.trace}</p>
-                  <div className="chips">
-                    <span className="chip chip--ghost">{verdict.water}</span>
-                    {verdict.sensoryWords.map((word) => (
-                      <span key={word} className="chip chip--ghost">{word}</span>
-                    ))}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard id="classements" title="Classements" subtitle="Synthèse sensorielle">
-          <p className="section-description">
-            Visualise rapidement les cafés qui sortent du lot selon la boisson et les critères sensoriels collectés en mots.
-          </p>
-          <div className="tabs" role="tablist" aria-label="Vues de classement">
-            {leaderboardSlices.map((slice) => (
-              <button
-                key={slice.id}
-                className={`tab${slice.id === activeLeaderboard ? ' tab--active' : ''}`}
-                onClick={() => setActiveLeaderboard(slice.id)}
-                type="button"
-                role="tab"
-                aria-selected={slice.id === activeLeaderboard}
+      <main className="segmented">
+        {activeSegment === 'collecte' ? (
+          <>
+            <div className="segmented-grid segmented-grid--two">
+              <SectionCard
+                id="collecte"
+                title="Référentiel Café"
+                subtitle="Achat et coûts"
+                action={draftState.coffeeStatus ? <Pill tone="success">{draftState.coffeeStatus}</Pill> : null}
               >
-                <span>{slice.label}</span>
-                <span className="tab__caption">{slice.description}</span>
-              </button>
-            ))}
-          </div>
-          <div className="leaderboard">
-            {activeLeaderboardSlice.entries.map((entry) => (
-              <article key={`${activeLeaderboard}-${entry.coffee}`} className="leaderboard__item">
-                <div className="leaderboard__meta">
-                  <p className="eyebrow">{entry.beverage}</p>
-                  <h3>{entry.coffee}</h3>
-                  <p className="muted">{entry.tag}</p>
+                <p className="section-description">
+                  Renseigne le lot utilisé pour calculer les coûts par shot, le choix d’eau et connecter les futures analyses.
+                </p>
+                <form className="form-grid" onSubmit={handleCoffeeSubmit}>
+                  <FormField
+                    label="Torréfacteur"
+                    name="roaster"
+                    placeholder="Ex: Five Elephant"
+                    required
+                    value={coffeeForm.roaster}
+                    onChange={updateCoffeeField('roaster')}
+                    datalistId="roaster-list"
+                    datalistOptions={roasterSuggestions}
+                    autoComplete="organization"
+                    error={coffeeErrors.roaster}
+                  />
+                  <FormField
+                    label="Référence"
+                    name="name"
+                    placeholder="Nom du café"
+                    required
+                    value={coffeeForm.name}
+                    onChange={updateCoffeeField('name')}
+                    datalistId="coffee-list"
+                    datalistOptions={coffeeNames}
+                    autoComplete="off"
+                    error={coffeeErrors.name}
+                  />
+                  <FormField
+                    label="Type"
+                    name="type"
+                    as="select"
+                    value={coffeeForm.type}
+                    onChange={updateCoffeeField('type')}
+                    error={coffeeErrors.type}
+                  >
+                    <option value="" disabled>Sélectionner</option>
+                    {coffeeTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    label="Poids du paquet (g)"
+                    name="weight"
+                    type="number"
+                    min={0}
+                    step={10}
+                    placeholder="250"
+                    helper="Le coût/shots est calculé automatiquement"
+                    value={coffeeForm.weight}
+                    onChange={updateCoffeeField('weight')}
+                    error={coffeeErrors.weight}
+                  />
+                  <FormField
+                    label="Prix payé (€)"
+                    name="price"
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    placeholder="14.5"
+                    value={coffeeForm.price}
+                    onChange={updateCoffeeField('price')}
+                    error={coffeeErrors.price}
+                  />
+                  <FormField
+                    label="Date d’achat"
+                    name="purchaseDate"
+                    type="date"
+                    value={coffeeForm.purchaseDate}
+                    onChange={updateCoffeeField('purchaseDate')}
+                  />
+                  <FormField
+                    label="Eau par défaut"
+                    name="water"
+                    as="select"
+                    value={coffeeForm.water}
+                    onChange={updateCoffeeField('water')}
+                    error={coffeeErrors.water}
+                  >
+                    {waterOptions.map((water) => (
+                      <option key={water} value={water}>{water}</option>
+                    ))}
+                  </FormField>
+                  <div className="form-actions">
+                    <button type="submit">Enregistrer le lot</button>
+                    <span className="hint">Validation immédiate, envoi API différé</span>
+                  </div>
+                </form>
+                <div className="card-list">
+                  {coffees.map((coffee) => (
+                    <article key={coffee.id} className="mini-card">
+                      <div className="mini-card__top">
+                        <div>
+                          <p className="eyebrow">{coffee.roaster}</p>
+                          <h3>{coffee.name}</h3>
+                        </div>
+                        <Pill tone={coffee.status === 'Approuvé' ? 'success' : coffee.status === 'À éviter' ? 'danger' : 'warning'}>
+                          {coffee.status}
+                        </Pill>
+                      </div>
+                      <dl className="stats">
+                        <div>
+                          <dt>Type</dt>
+                          <dd>{coffee.type}</dd>
+                        </div>
+                        <div>
+                          <dt>Coût/kg</dt>
+                          <dd>{formatCurrency(coffee.pricePerKg)}</dd>
+                        </div>
+                        <div>
+                          <dt>Coût / shot</dt>
+                          <dd>{formatCurrency(coffee.costPerShot)}</dd>
+                        </div>
+                        <div>
+                          <dt>Eau</dt>
+                          <dd>{coffee.water}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
                 </div>
-                <Pill tone={entry.position === 1 ? 'success' : 'info'}>
-                  {positionToWord(entry.position)}
-                </Pill>
-              </article>
-            ))}
+              </SectionCard>
+
+              <SectionCard
+                id="journal-extraction"
+                title="Journal d&apos;extraction"
+                subtitle="Shot factuel"
+                action={draftState.shotStatus ? <Pill tone="success">{draftState.shotStatus}</Pill> : null}
+              >
+                <p className="section-description">
+                  Note uniquement les faits techniques : paramètres machine, ratio, eau. Un rappel sensoriel en mots aide à sécuriser
+                  la cohérence sans jamais afficher de chiffres d’analyse.
+                </p>
+                <form className="form-grid" onSubmit={handleShotSubmit}>
+                  <FormField
+                    label="Café utilisé"
+                    name="coffee"
+                    as="select"
+                    value={shotForm.coffee}
+                    onChange={updateShotField('coffee')}
+                    error={shotErrors.coffee}
+                  >
+                    <option value="" disabled>Choisir un café</option>
+                    {coffees.map((coffee) => (
+                      <option key={coffee.id} value={coffee.name}>{coffee.name}</option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    label="Boisson"
+                    name="beverage"
+                    as="select"
+                    value={shotForm.beverage}
+                    onChange={updateShotField('beverage')}
+                    error={shotErrors.beverage}
+                  >
+                    <option value="" disabled>Type d&apos;extraction</option>
+                    {beverageOptions.map((beverage) => (
+                      <option key={beverage} value={beverage}>{beverage}</option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    label="Mouture"
+                    name="grind"
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    placeholder="6.0"
+                    helper="Valeur machine, reste interne"
+                    value={shotForm.grind}
+                    onChange={updateShotField('grind')}
+                  />
+                  <FormField
+                    label="Dose (g)"
+                    name="dose"
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    placeholder="18.0"
+                    value={shotForm.dose}
+                    onChange={updateShotField('dose')}
+                    error={shotErrors.dose}
+                  />
+                  <FormField
+                    label="Poids en tasse (g)"
+                    name="yield"
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    placeholder="36"
+                    value={shotForm.yield}
+                    onChange={updateShotField('yield')}
+                    error={shotErrors.yield}
+                  />
+                  <FormField
+                    label="Temps (s)"
+                    name="time"
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    placeholder="28"
+                    value={shotForm.time}
+                    onChange={updateShotField('time')}
+                    error={shotErrors.time}
+                  />
+                  <FormField
+                    label="Eau"
+                    name="water"
+                    as="select"
+                    value={shotForm.water}
+                    onChange={updateShotField('water')}
+                    error={shotErrors.water}
+                  >
+                    {waterOptions.map((water) => (
+                      <option key={water} value={water}>{water}</option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    label="Repère sensoriel en mots"
+                    name="sensoryWords"
+                    placeholder="floral, velouté, doux"
+                    helper="Alimente l’API sans chiffres"
+                    value={shotForm.sensoryWords}
+                    onChange={updateShotField('sensoryWords')}
+                    datalistId="sensory-list"
+                    datalistOptions={sensoryWords}
+                  />
+                  <div className="chips">
+                    {waterOptions.map((water) => (
+                      <button
+                        key={water}
+                        type="button"
+                        className={`chip${shotForm.water === water ? ' chip--active' : ''}`}
+                        onClick={() => setShotForm((previous) => ({ ...previous, water }))}
+                      >
+                        {water}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="form-actions">
+                    <button type="submit">Enregistrer le shot</button>
+                    <span className="hint">Diagnostics ratio et suggestions restent textuels</span>
+                  </div>
+                </form>
+
+                <div className="card-list card-list--compact">
+                  {shots.map((shot) => (
+                    <article key={shot.id} className="mini-card mini-card--compact">
+                      <div className="mini-card__top">
+                        <div>
+                          <p className="eyebrow">{shot.beverage}</p>
+                          <h3>{shot.coffee}</h3>
+                        </div>
+                        <span className="timestamp">{new Date(shot.date).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                      <dl className="stats stats--wrap">
+                        <div>
+                          <dt>Ratio</dt>
+                          <dd>{shot.dose}g → {shot.yield}g</dd>
+                        </div>
+                        <div>
+                          <dt>Temps</dt>
+                          <dd>{shot.time}s</dd>
+                        </div>
+                        <div>
+                          <dt>Eau</dt>
+                          <dd>{shot.water}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  ))}
+                </div>
+              </SectionCard>
+            </div>
+
+            <div className="segmented-grid segmented-grid--two">
+              <SectionCard
+                id="degustation-verdict"
+                title="Dégustation & verdict"
+                subtitle="Sensoriel"
+                action={draftState.tastingStatus ? <Pill tone="success">{draftState.tastingStatus}</Pill> : null}
+              >
+                <p className="section-description">
+                  Jugements exprimés avec des mots uniquement. Les réponses proviennent des endpoints d’analyse et restent traçables
+                  (eau, shot, arômes) sans affichage numérique.
+                </p>
+                <form className="form-grid" onSubmit={handleTastingSubmit}>
+                  <FormField
+                    label="Café dégusté"
+                    name="tastingCoffee"
+                    as="select"
+                    value={tastingForm.coffee}
+                    onChange={updateTastingField('coffee')}
+                    error={tastingErrors.coffee}
+                  >
+                    <option value="" disabled>Choisir un café</option>
+                    {coffees.map((coffee) => (
+                      <option key={coffee.id} value={coffee.name}>{coffee.name}</option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    label="Arômes dominants"
+                    name="aromas"
+                    placeholder="Fruits jaunes, miel"
+                    value={tastingForm.aromas}
+                    onChange={updateTastingField('aromas')}
+                    datalistId="aroma-list"
+                    datalistOptions={sensoryVocabulary.aromas}
+                    error={tastingErrors.aromas}
+                  />
+                  <FormField
+                    label="Texture"
+                    name="mouthfeel"
+                    placeholder="Fluide / rond / sirupeux"
+                    value={tastingForm.mouthfeel}
+                    onChange={updateTastingField('mouthfeel')}
+                    datalistId="mouthfeel-list"
+                    datalistOptions={sensoryVocabulary.mouthfeels}
+                    error={tastingErrors.mouthfeel}
+                  />
+                  <FormField
+                    label="Finale"
+                    name="finish"
+                    placeholder="Longueur harmonieuse"
+                    value={tastingForm.finish}
+                    onChange={updateTastingField('finish')}
+                    datalistId="finish-list"
+                    datalistOptions={sensoryVocabulary.finishes}
+                    error={tastingErrors.finish}
+                  />
+                  <FormField
+                    label="Verdict"
+                    name="verdict"
+                    as="select"
+                    value={tastingForm.verdict}
+                    onChange={updateTastingField('verdict')}
+                    error={tastingErrors.verdict}
+                  >
+                    <option value="" disabled>Choisir une issue</option>
+                    {sensoryVocabulary.verdicts.map((verdict) => (
+                      <option key={verdict} value={verdict}>{verdict}</option>
+                    ))}
+                  </FormField>
+                  <FormField
+                    label="Commentaire en mots"
+                    name="comment"
+                    as="textarea"
+                    rows={3}
+                    placeholder="Décision motivée, sans chiffres"
+                    value={tastingForm.comment}
+                    onChange={updateTastingField('comment')}
+                  />
+                  <FormField
+                    label="Eau utilisée"
+                    name="tastingWater"
+                    as="select"
+                    value={tastingForm.water}
+                    onChange={updateTastingField('water')}
+                    error={tastingErrors.water}
+                  >
+                    {waterOptions.map((water) => (
+                      <option key={water} value={water}>{water}</option>
+                    ))}
+                  </FormField>
+                  <div className="form-actions">
+                    <button type="submit">Enregistrer la dégustation</button>
+                    <span className="hint">La décision reste textuelle et traçable</span>
+                  </div>
+                </form>
+              </SectionCard>
+
+              <SectionCard
+                title="Guides rapides"
+                subtitle="Simplification sans perdre le détail"
+              >
+                <div className="playbook">
+                  <div className="playbook__item">
+                    <p className="eyebrow">Étape 1</p>
+                    <h3>Déclare le lot</h3>
+                    <p className="muted">Enregistre le paquet, l’eau par défaut et laisse le calcul des coûts en interne.</p>
+                  </div>
+                  <div className="playbook__item">
+                    <p className="eyebrow">Étape 2</p>
+                    <h3>Log le shot</h3>
+                    <p className="muted">Paramètres machine, eau, ratio : tout reste textuel, prêt pour l’analyse.</p>
+                  </div>
+                  <div className="playbook__item">
+                    <p className="eyebrow">Étape 3</p>
+                    <h3>Saisis la dégustation</h3>
+                    <p className="muted">Mots-clés sensoriels + verdict humain, sans notation numérique affichée.</p>
+                  </div>
+                </div>
+                <ul className="bullet-list">
+                  <li>Chaque formulaire reste indépendant : moins de champs visibles en même temps.</li>
+                  <li>Les données avancées (coût, ratios) sont calculées en arrière-plan.</li>
+                  <li>Les analyses et classements sont regroupés dans les onglets dédiés.</li>
+                </ul>
+              </SectionCard>
+            </div>
+          </>
+        ) : null}
+
+        {activeSegment === 'analyse' ? (
+          <div className="segmented-grid segmented-grid--two">
+            <SectionCard id="analyse" title="Analyses en direct" subtitle="API & signaux textuels">
+              <p className="section-description">
+                Les endpoints Barisense répondent en mots : verdicts, stabilité, eau. Tout est traçable sans afficher de chiffres.
+              </p>
+              <div className="analysis-grid">
+                {analysisFeed.length === 0 ? (
+                  <p className="muted">Connexion aux endpoints d’analyse en cours…</p>
+                ) : (
+                  analysisFeed.map((signal) => (
+                    <article key={signal.endpoint} className="mini-card analysis-card">
+                      <div className="mini-card__top">
+                        <div>
+                          <p className="eyebrow">{signal.label}</p>
+                          <h3>{signal.verdictWord}</h3>
+                        </div>
+                        <Pill tone="info">API {signal.endpoint}</Pill>
+                      </div>
+                      <p className="muted">{signal.trace}</p>
+                      <div className="chips">
+                        {signal.words.map((word) => (
+                          <span key={word} className="chip chip--ghost">{word}</span>
+                        ))}
+                      </div>
+                      <p className="analysis-focus">{signal.focus}</p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Verdicts expliqués" subtitle="Décisions textuelles">
+              <p className="section-description">
+                Les décisions sont lisibles en un coup d’œil : verdict, rappel eau, justification et trace des mots-clés utilisés.
+              </p>
+              <div className="verdict-grid">
+                {justifiedVerdicts.map((verdict) => (
+                  <article key={verdict.coffee} className="mini-card verdict">
+                    <div className="mini-card__top">
+                      <div>
+                        <p className="eyebrow">Verdict {verdict.beverage}</p>
+                        <h3>{verdict.coffee}</h3>
+                      </div>
+                      <Pill tone={verdict.verdict === 'Racheter' ? 'success' : verdict.verdict === 'À éviter' ? 'danger' : 'warning'}>
+                        {verdict.verdict}
+                      </Pill>
+                    </div>
+                    <ul className="verdict__list">
+                      {verdict.highlights.map((highlight) => (
+                        <li key={highlight}>{highlight}</li>
+                      ))}
+                    </ul>
+                    <div className="verdict__trace">
+                      <p className="muted">{verdict.justification}</p>
+                      <p className="trace">{verdict.trace}</p>
+                      <div className="chips">
+                        <span className="chip chip--ghost">{verdict.water}</span>
+                        {verdict.sensoryWords.map((word) => (
+                          <span key={word} className="chip chip--ghost">{word}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
           </div>
-        </SectionCard>
+        ) : null}
+
+        {activeSegment === 'synthese' ? (
+          <div className="segmented-grid segmented-grid--two">
+            <SectionCard id="synthese" title="Classements" subtitle="Synthèse sensorielle">
+              <p className="section-description">
+                Visualise rapidement les cafés qui sortent du lot selon la boisson et les critères sensoriels collectés en mots.
+              </p>
+              <div className="tabs" role="tablist" aria-label="Vues de classement">
+                {leaderboardSlices.map((slice) => (
+                  <button
+                    key={slice.id}
+                    className={`tab${slice.id === activeLeaderboard ? ' tab--active' : ''}`}
+                    onClick={() => setActiveLeaderboard(slice.id)}
+                    type="button"
+                    role="tab"
+                    aria-selected={slice.id === activeLeaderboard}
+                  >
+                    <span>{slice.label}</span>
+                    <span className="tab__caption">{slice.description}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="leaderboard">
+                {activeLeaderboardSlice.entries.map((entry) => (
+                  <article key={`${activeLeaderboard}-${entry.coffee}`} className="leaderboard__item">
+                    <div className="leaderboard__meta">
+                      <p className="eyebrow">{entry.beverage}</p>
+                      <h3>{entry.coffee}</h3>
+                      <p className="muted">{entry.tag}</p>
+                    </div>
+                    <Pill tone={entry.position === 1 ? 'success' : 'info'}>
+                      {positionToWord(entry.position)}
+                    </Pill>
+                  </article>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Tableau de bord condensé" subtitle="Accès rapide">
+              <div className="spotlight-grid">
+                <div className="spotlight">
+                  <p className="eyebrow">Référentiel</p>
+                  <h3>{coffees.length} cafés</h3>
+                  <p className="muted">Lots suivis avec eau par défaut et coûts internes.</p>
+                </div>
+                <div className="spotlight">
+                  <p className="eyebrow">Shots & dégustations</p>
+                  <h3>{shots.length} shots</h3>
+                  <p className="muted">Paramètres et mots-clés prêts à croiser avec l’eau.</p>
+                </div>
+                <div className="spotlight">
+                  <p className="eyebrow">Analyses</p>
+                  <h3>{justifiedVerdicts.length} verdicts</h3>
+                  <p className="muted">Décisions textuelles, sans notation visible.</p>
+                </div>
+              </div>
+              <ul className="bullet-list">
+                <li>Ouvre un classement, puis reviens à la collecte en un clic via les onglets.</li>
+                <li>Les mêmes données alimentent les sections analyses et synthèse : aucune saisie dupliquée.</li>
+                <li>Les cartes sont compactes pour rester lisibles sur mobile comme sur desktop.</li>
+              </ul>
+            </SectionCard>
+          </div>
+        ) : null}
       </main>
     </div>
   );

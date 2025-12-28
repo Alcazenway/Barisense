@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:offline": "vite build --base=./ --outDir offline-dist"
   },
   "dependencies": {
     "react": "^18.3.1",
