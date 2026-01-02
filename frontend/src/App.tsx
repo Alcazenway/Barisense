@@ -1,893 +1,811 @@
-import { useEffect, useMemo, useState } from 'react';
-import { FormField } from './components/FormField';
-import { Navigation } from './components/Navigation';
-import { Pill } from './components/Pill';
-import { SectionCard } from './components/SectionCard';
-import {
-  analysisSignals,
-  coffees,
-  justifiedVerdicts,
-  leaderboardSlices,
-  sensoryVocabulary,
-  shots,
-  waterOptions,
-} from './data/sampleData';
-import type { AnalysisSignal, BeverageType, CoffeeType } from './types';
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 
-interface DraftState {
-  coffeeStatus?: string;
-  shotStatus?: string;
-  tastingStatus?: string;
+interface CafeLot {
+  id: string;
+  nom: string;
+  marque: string;
+  origine?: string;
+  intensite: number;
+  statut: 'stock' | 'ouvert';
+  dateAchat: string;
 }
 
-interface CoffeeFormState {
-  roaster: string;
-  name: string;
-  type: CoffeeType | '';
-  weight: string;
-  price: string;
-  purchaseDate: string;
-  water: string;
-}
-
-interface ShotFormState {
-  coffee: string;
-  beverage: BeverageType | '';
+interface ShotNote {
+  id: string;
+  cafeId: string;
   grind: string;
-  dose: string;
-  yield: string;
+  in: string;
+  out: string;
   time: string;
-  water: string;
-  sensoryWords: string;
+  tasted: boolean;
+  flavor: string | null;
+  score: number;
+  date: string;
 }
 
-interface TastingFormState {
-  coffee: string;
-  aromas: string;
-  mouthfeel: string;
-  finish: string;
-  verdict: string;
-  comment: string;
-  water: string;
+interface DbState {
+  cafes: CafeLot[];
+  shots: ShotNote[];
 }
 
-type SegmentKey = 'collecte' | 'analyse' | 'synthese';
+type View = 'hub' | 'cave' | 'shot' | 'ranking' | 'history' | 'admin' | 'cafe-detail';
 
-const beverageOptions: BeverageType[] = ['Ristretto', 'Expresso', 'Café long'];
-const coffeeTypes: CoffeeType[] = ['Grain', 'Moulu'];
+const STORAGE_KEY = 'MONEX_V7_DB';
+const FLAVOR_OPTIONS = ['Equilibré', 'Acide', 'Amer'];
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+const defaultCafeForm = {
+  nom: '',
+  marque: '',
+  origine: '',
+  intensite: 5,
+};
 
-function positionToWord(position: number) {
-  if (position === 1) return 'Premier';
-  if (position === 2) return 'Deuxième';
-  if (position === 3) return 'Troisième';
-  return `Top ${position}`;
-}
-
-function uniqueWords(list: string[]) {
-  return Array.from(new Set(list));
-}
+const defaultShotForm = {
+  grind: '',
+  in: '',
+  out: '',
+  time: '',
+};
 
 export default function App() {
-  const [draftState, setDraftState] = useState<DraftState>({});
-  const [analysisFeed, setAnalysisFeed] = useState<AnalysisSignal[]>([]);
-  const [activeLeaderboard, setActiveLeaderboard] = useState(leaderboardSlices[0]?.id ?? 'global');
-  const [activeSegment, setActiveSegment] = useState<SegmentKey>('collecte');
-
-  const latestShot = shots[shots.length - 1];
-
-  const [coffeeForm, setCoffeeForm] = useState<CoffeeFormState>({
-    roaster: '',
-    name: '',
-    type: '',
-    weight: '',
-    price: '',
-    purchaseDate: '',
-    water: waterOptions[0],
-  });
-  const [shotForm, setShotForm] = useState<ShotFormState>({
-    coffee: latestShot?.coffee ?? '',
-    beverage: latestShot?.beverage ?? '',
-    grind: '',
-    dose: latestShot?.dose?.toString() ?? '',
-    yield: latestShot?.yield?.toString() ?? '',
-    time: latestShot?.time?.toString() ?? '',
-    water: latestShot?.water ?? waterOptions[0],
-    sensoryWords: '',
-  });
-  const [tastingForm, setTastingForm] = useState<TastingFormState>({
-    coffee: '',
-    aromas: '',
-    mouthfeel: '',
-    finish: '',
-    verdict: '',
-    comment: '',
-    water: waterOptions[0],
-  });
-
-  const [coffeeErrors, setCoffeeErrors] = useState<Record<string, string>>({});
-  const [shotErrors, setShotErrors] = useState<Record<string, string>>({});
-  const [tastingErrors, setTastingErrors] = useState<Record<string, string>>({});
+  const [db, setDb] = useState<DbState>({ cafes: [], shots: [] });
+  const [view, setView] = useState<View>('hub');
+  const [detailCafeId, setDetailCafeId] = useState<string | null>(null);
+  const [cafeForm, setCafeForm] = useState(defaultCafeForm);
+  const [shotForm, setShotForm] = useState(defaultShotForm);
+  const [formVisible, setFormVisible] = useState(false);
+  const [tasteShotId, setTasteShotId] = useState<string | null>(null);
+  const [tasteFlavor, setTasteFlavor] = useState(FLAVOR_OPTIONS[0]);
+  const [tasteScore, setTasteScore] = useState(5);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAnalysisFeed(analysisSignals);
-    }, 220);
-    return () => clearTimeout(timer);
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        setDb(JSON.parse(stored));
+      } catch (error) {
+        console.error('Impossible de charger la base locale', error);
+      }
+    }
   }, []);
 
-  const roasterSuggestions = useMemo(
-    () => uniqueWords(coffees.map((coffee) => coffee.roaster)),
-    [],
-  );
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  }, [db]);
 
-  const coffeeNames = useMemo(
-    () => uniqueWords(coffees.map((coffee) => coffee.name)),
-    [],
-  );
+  const pendingShots = useMemo(() => db.shots.filter((shot) => !shot.tasted), [db.shots]);
+  const openCafe = useMemo(() => db.cafes.find((cafe) => cafe.statut === 'ouvert'), [db.cafes]);
 
-  const sensoryWords = useMemo(
-    () => uniqueWords([
-      ...sensoryVocabulary.aromas,
-      ...sensoryVocabulary.mouthfeels,
-      ...sensoryVocabulary.finishes,
-    ]),
-    [],
-  );
+  const statsForCafe = (cafeId: string) => {
+    const tastedShots = db.shots.filter((shot) => shot.cafeId === cafeId && shot.tasted);
+    if (tastedShots.length === 0) {
+      return { avg: 0, status: 'À TESTER', best: null as ShotNote | null, count: 0 };
+    }
+    const avg = tastedShots.reduce((total, shot) => total + Number(shot.score), 0) / tastedShots.length;
+    const best = [...tastedShots].sort((a, b) => b.score - a.score)[0];
+    const status = avg >= 7.5 ? 'RACHETER' : avg >= 5 ? 'AFFINER' : 'ÉVITER';
+    return { avg: Number(avg.toFixed(1)), status, best, count: tastedShots.length };
+  };
 
-  const waterDiversity = useMemo(
-    () => new Set(coffees.map((coffee) => coffee.water)).size,
-    [],
-  );
+  const setViewWithDetail = (nextView: View, cafeId?: string) => {
+    setView(nextView);
+    setDetailCafeId(cafeId ?? null);
+    window.scrollTo({ top: 0 });
+  };
 
-  const segments = useMemo(
-    () => ([
-      { id: 'collecte' as SegmentKey, label: 'Collecte', caption: 'Lots, shots et dégustations' },
-      { id: 'analyse' as SegmentKey, label: 'Analyses', caption: 'Traces API et verdicts' },
-      { id: 'synthese' as SegmentKey, label: 'Synthèse', caption: 'Classements et navigation' },
-    ]),
-    [],
-  );
+  const toggleForm = () => setFormVisible((previous) => !previous);
 
-  const navigationItems = useMemo(
-    () => [
-      {
-        id: 'collecte',
-        title: 'Collecte segmentée',
-        description: 'Lots, shots et dégustations dans un espace dédié',
-        eyebrow: 'Flux',
-        badge: <Pill tone="info">{coffees.length} cafés</Pill>,
-      },
-      {
-        id: 'analyse',
-        title: 'Analyses & décisions',
-        description: 'Signaux API, verdicts expliqués, traçabilité eau',
-        eyebrow: 'Lecture',
-        badge: <Pill tone="info">{justifiedVerdicts.length} verdicts</Pill>,
-      },
-      {
-        id: 'synthese',
-        title: 'Synthèse & classements',
-        description: 'Vue condensée par boisson et objectifs',
-        eyebrow: 'Comparaison',
-        badge: <Pill tone="info">{leaderboardSlices.length} vues</Pill>,
-      },
-    ],
-    [coffees.length, justifiedVerdicts.length, leaderboardSlices.length],
-  );
+  const handleCafeChange = (
+    field: keyof typeof defaultCafeForm,
+  ) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const value = field === 'intensite' ? Number(event.target.value) : event.target.value;
+    setCafeForm((previous) => ({ ...previous, [field]: value }));
+  };
 
-  const setFormStatus = (key: keyof DraftState) => {
-    const timestamp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    setDraftState((previous) => ({
+  const handleShotChange = (
+    field: keyof typeof defaultShotForm,
+  ) => (event: ChangeEvent<HTMLInputElement>) => {
+    setShotForm((previous) => ({ ...previous, [field]: event.target.value }));
+  };
+
+  const saveCafe = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!cafeForm.nom.trim() || !cafeForm.marque.trim()) return;
+    const newCafe: CafeLot = {
+      id: `C${Date.now()}`,
+      nom: cafeForm.nom.trim(),
+      marque: cafeForm.marque.trim(),
+      origine: cafeForm.origine.trim(),
+      intensite: cafeForm.intensite,
+      statut: 'stock',
+      dateAchat: new Date().toLocaleDateString('fr-FR'),
+    };
+    setDb((previous) => ({ ...previous, cafes: [newCafe, ...previous.cafes] }));
+    setCafeForm(defaultCafeForm);
+    setFormVisible(false);
+    setView('cave');
+  };
+
+  const markCafeOpen = (id: string) => {
+    setDb((previous) => ({
       ...previous,
-      [key]: `Brouillon prêt • ${timestamp}`,
+      cafes: previous.cafes.map((cafe) => ({
+        ...cafe,
+        statut: cafe.id === id ? 'ouvert' : 'stock',
+      })),
     }));
+    setView('hub');
   };
 
-  const handleCoffeeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveShot = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const errors: Record<string, string> = {};
-    if (!coffeeForm.roaster.trim()) errors.roaster = 'Indique un torréfacteur';
-    if (!coffeeForm.name.trim()) errors.name = 'Référence obligatoire';
-    if (!coffeeForm.type) errors.type = 'Choisir un type';
-    if (!coffeeForm.water) errors.water = 'Choisir une eau';
-    if (coffeeForm.weight && Number(coffeeForm.weight) <= 0) errors.weight = 'Poids positif requis';
-    if (coffeeForm.price && Number(coffeeForm.price) <= 0) errors.price = 'Prix positif requis';
-
-    setCoffeeErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setFormStatus('coffeeStatus');
+    if (!openCafe) return;
+    const newShot: ShotNote = {
+      id: `S${Date.now()}`,
+      cafeId: openCafe.id,
+      grind: shotForm.grind,
+      in: shotForm.in,
+      out: shotForm.out,
+      time: shotForm.time,
+      tasted: false,
+      flavor: null,
+      score: 0,
+      date: new Date().toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    };
+    setDb((previous) => ({ ...previous, shots: [...previous.shots, newShot] }));
+    setShotForm(defaultShotForm);
+    setView('hub');
   };
 
-  const handleShotSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const errors: Record<string, string> = {};
-    if (!shotForm.coffee) errors.coffee = 'Sélectionner un café';
-    if (!shotForm.beverage) errors.beverage = 'Choisir un format';
-    if (!shotForm.water) errors.water = 'Sélectionner une eau';
+  const openTasteModal = (shotId: string) => {
+    setTasteShotId(shotId);
+    setTasteFlavor(FLAVOR_OPTIONS[0]);
+    setTasteScore(5);
+  };
 
-    (['dose', 'yield', 'time'] as Array<keyof ShotFormState>).forEach((field) => {
-      const value = Number(shotForm[field]);
-      if (!shotForm[field] || Number.isNaN(value) || value <= 0) {
-        errors[field] = 'Renseigne une valeur positive';
+  const saveTaste = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!tasteShotId) return;
+    setDb((previous) => ({
+      ...previous,
+      shots: previous.shots.map((shot) =>
+        shot.id === tasteShotId
+          ? { ...shot, flavor: tasteFlavor, score: tasteScore, tasted: true }
+          : shot,
+      ),
+    }));
+    closeModal();
+    setView('history');
+  };
+
+  const closeModal = () => setTasteShotId(null);
+
+  const exportDb = () => {
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `monexpresso_backup_${new Date().toISOString().split('T')[0]}.json`;
+    anchor.click();
+  };
+
+  const importDb = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const imported: DbState = JSON.parse(String(loadEvent.target?.result));
+        setDb(imported);
+        setView('hub');
+      } catch (error) {
+        console.error('Fichier illisible', error);
       }
-    });
-
-    setShotErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setFormStatus('shotStatus');
+    };
+    reader.readAsText(file);
   };
 
-  const handleTastingSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const errors: Record<string, string> = {};
-    if (!tastingForm.coffee) errors.coffee = 'Sélectionne le café dégusté';
-    if (!tastingForm.aromas.trim()) errors.aromas = 'Décris les arômes en mots';
-    if (!tastingForm.mouthfeel.trim()) errors.mouthfeel = 'Décris la texture';
-    if (!tastingForm.finish.trim()) errors.finish = 'Ajoute la finale';
-    if (!tastingForm.verdict) errors.verdict = 'Choisis un verdict en mots';
-    if (!tastingForm.water) errors.water = 'Associe l’eau utilisée';
-
-    setTastingErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setFormStatus('tastingStatus');
+  const injectDemo = () => {
+    const cafes: CafeLot[] = [
+      { id: 'C1', nom: 'Moka Sidamo', marque: 'Terres de Café', intensite: 6, statut: 'ouvert', dateAchat: '01/01/24' },
+      { id: 'C2', nom: 'Bourbon Pointu', marque: 'Lomi', intensite: 4, statut: 'stock', dateAchat: '05/01/24' },
+    ];
+    const shots: ShotNote[] = Array.from({ length: 20 }, (_, index) => ({
+      id: `S${index}`,
+      cafeId: 'C1',
+      grind: String(4 + (index % 3)),
+      in: '18',
+      out: String(36 + (index % 2)),
+      time: String(24 + (index % 6)),
+      flavor: index % 3 === 0 ? 'Equilibré' : 'Amer',
+      score: 6 + (index % 4),
+      tasted: index > 2,
+      date: '12/01/24 08:30',
+    }));
+    setDb({ cafes, shots });
+    setView('hub');
   };
 
-  const updateCoffeeField = (field: keyof CoffeeFormState) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setCoffeeForm((previous) => ({ ...previous, [field]: event.target.value }));
-  };
-
-  const updateShotField = (field: keyof ShotFormState) => (
-    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const value = event.target.value;
-    if (field === 'coffee') {
-      const selectedCoffee = coffees.find((coffee) => coffee.name === value);
-      setShotForm((previous) => ({
-        ...previous,
-        coffee: value,
-        water: selectedCoffee?.water ?? previous.water,
-      }));
-      setTastingForm((previous) => ({ ...previous, coffee: value, water: selectedCoffee?.water ?? previous.water }));
-      return;
+  const resetAll = () => {
+    if (window.confirm('Supprimer TOUT ?')) {
+      setDb({ cafes: [], shots: [] });
+      setView('hub');
     }
-
-    setShotForm((previous) => ({ ...previous, [field]: value }));
   };
 
-  const updateTastingField = (field: keyof TastingFormState) => (
-    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => {
-    const value = event.target.value;
-    if (field === 'coffee') {
-      const selectedCoffee = coffees.find((coffee) => coffee.name === value);
-      setTastingForm((previous) => ({ ...previous, coffee: value, water: selectedCoffee?.water ?? previous.water }));
-      return;
-    }
+  const renderHub = () => {
+    const stats = openCafe ? statsForCafe(openCafe.id) : null;
 
-    setTastingForm((previous) => ({ ...previous, [field]: value }));
-  };
-
-  const activeLeaderboardSlice = leaderboardSlices.find((slice) => slice.id === activeLeaderboard) ?? leaderboardSlices[0];
-
-  return (
-    <div className="app-shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Barisense • Pilote barista</p>
-          <h1>Collecte, dégustation et verdicts</h1>
-          <p className="lede">
-            Un hub mobile-first pour tracer les cafés, suivre les réglages, comparer les eaux et rendre les verdicts
-            uniquement en mots.
-          </p>
-          <div className="hero__pills">
-            <Pill tone="success">{coffees.length} cafés suivis</Pill>
-            <Pill tone="info">{shots.length} extractions notées</Pill>
-            <Pill tone="warning">{waterDiversity} types d&apos;eau</Pill>
-          </div>
-        </div>
-        <div className="hero__card">
-          <p className="eyebrow">Prochain shot</p>
-          <h3>{latestShot.coffee}</h3>
-          <ul className="shot-meta">
-            <li>
-              <span>Boisson</span>
-              <strong>{latestShot.beverage}</strong>
-            </li>
-            <li>
-              <span>Ratio</span>
-              <strong>{latestShot.dose}g → {latestShot.yield}g</strong>
-            </li>
-            <li>
-              <span>Temps</span>
-              <strong>{latestShot.time}s</strong>
-            </li>
-            <li>
-              <span>Eau</span>
-              <strong>{latestShot.water}</strong>
-            </li>
-          </ul>
-        </div>
-      </header>
-
-      <Navigation
-        items={navigationItems}
-        activeId={activeSegment}
-        onSelect={(id) => setActiveSegment(id as SegmentKey)}
-      />
-
-      <div className="segment-switch" role="tablist" aria-label="Vues segmentées">
-        {segments.map((segment) => (
+    return (
+      <div className="space-y-6">
+        {pendingShots.length > 0 ? (
           <button
-            key={segment.id}
             type="button"
-            className={`segment-switch__button${segment.id === activeSegment ? ' is-active' : ''}`}
-            onClick={() => setActiveSegment(segment.id)}
-            role="tab"
-            aria-selected={segment.id === activeSegment}
+            className="bg-amber-500 p-4 rounded-2xl flex justify-between items-center shadow-lg pulse w-full"
+            onClick={() => setView('history')}
           >
-            <span className="segment-switch__label">{segment.label}</span>
-            <span className="segment-switch__caption">{segment.caption}</span>
+            <span className="text-white text-[10px] font-black uppercase tracking-widest">
+              {pendingShots.length} Dégustation(s) à noter
+            </span>
+            <i className="fa-solid fa-chevron-right text-white/50" />
+          </button>
+        ) : null}
+
+        <div className="space-y-4">
+          <h2 className="text-[10px] font-black uppercase text-stone-400 tracking-widest">Barista en service</h2>
+          {openCafe ? (
+            <button
+              type="button"
+              onClick={() => setViewWithDetail('cafe-detail', openCafe.id)}
+              className="card p-8 bg-stone-900 text-white cursor-pointer relative overflow-hidden text-left"
+            >
+              <span className="bg-amber-500 text-stone-900 text-[8px] font-black px-2 py-1 rounded uppercase mb-4 inline-block">
+                Actuel
+              </span>
+              <h3 className="text-4xl font-black italic tracking-tighter mb-1">{openCafe.nom}</h3>
+              <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-8">{openCafe.marque}</p>
+              <div className="flex justify-between items-end border-t border-stone-800 pt-6">
+                <div>
+                  <p className="text-[8px] text-amber-500 font-black uppercase">Verdict</p>
+                  <p className="text-lg font-black">{stats?.status}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[8px] text-stone-500 font-black uppercase">Note Moyenne</p>
+                  <p className="text-lg font-black">{stats?.avg}/10</p>
+                </div>
+              </div>
+            </button>
+          ) : (
+            <div className="card p-12 text-center text-[10px] font-black uppercase text-stone-400">Aucun café ouvert.</div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="card p-6 text-center">
+            <p className="text-[9px] font-black text-stone-400 uppercase mb-1">Total Shots</p>
+            <p className="text-3xl font-black">{db.shots.length}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setView('ranking')}
+            className="card p-6 text-center border-amber-200 cursor-pointer"
+          >
+            <p className="text-[9px] font-black text-amber-600 uppercase mb-1">Elite Rank</p>
+            <p className="text-3xl font-black text-amber-600">
+              <i className="fa-solid fa-trophy" />
+            </p>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRanking = () => {
+    const ranked = db.cafes
+      .map((cafe) => ({ ...cafe, stats: statsForCafe(cafe.id) }))
+      .sort((a, b) => b.stats.avg - a.stats.avg);
+
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Elite Ranking</h2>
+        {ranked.map((cafe, index) => (
+          <button
+            type="button"
+            key={cafe.id}
+            onClick={() => setViewWithDetail('cafe-detail', cafe.id)}
+            className={`card p-5 flex items-center gap-6 cursor-pointer border-l-8 ${
+              cafe.stats.status === 'RACHETER' ? 'border-green-500' : 'border-stone-100'
+            }`}
+          >
+            <span className="text-3xl font-black text-stone-200 italic">#{index + 1}</span>
+            <div className="flex-1">
+              <h4 className="font-black text-sm uppercase">{cafe.nom}</h4>
+              <p className="text-[9px] font-bold text-stone-400 uppercase">
+                {cafe.stats.status} • {cafe.stats.count} shots
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xl font-black italic text-amber-600 leading-none">{cafe.stats.avg}</p>
+            </div>
           </button>
         ))}
       </div>
+    );
+  };
 
-      <main className="segmented">
-        {activeSegment === 'collecte' ? (
-          <>
-            <div className="segmented-grid segmented-grid--two">
-              <SectionCard
-                id="collecte"
-                title="Référentiel Café"
-                subtitle="Achat et coûts"
-                action={draftState.coffeeStatus ? <Pill tone="success">{draftState.coffeeStatus}</Pill> : null}
-              >
-                <p className="section-description">
-                  Renseigne le lot utilisé pour calculer les coûts par shot, le choix d’eau et connecter les futures analyses.
-                </p>
-                <form className="form-grid" onSubmit={handleCoffeeSubmit}>
-                  <FormField
-                    label="Torréfacteur"
-                    name="roaster"
-                    placeholder="Ex: Five Elephant"
-                    required
-                    value={coffeeForm.roaster}
-                    onChange={updateCoffeeField('roaster')}
-                    datalistId="roaster-list"
-                    datalistOptions={roasterSuggestions}
-                    autoComplete="organization"
-                    error={coffeeErrors.roaster}
-                  />
-                  <FormField
-                    label="Référence"
-                    name="name"
-                    placeholder="Nom du café"
-                    required
-                    value={coffeeForm.name}
-                    onChange={updateCoffeeField('name')}
-                    datalistId="coffee-list"
-                    datalistOptions={coffeeNames}
-                    autoComplete="off"
-                    error={coffeeErrors.name}
-                  />
-                  <FormField
-                    label="Type"
-                    name="type"
-                    as="select"
-                    value={coffeeForm.type}
-                    onChange={updateCoffeeField('type')}
-                    error={coffeeErrors.type}
-                  >
-                    <option value="" disabled>Sélectionner</option>
-                    {coffeeTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    label="Poids du paquet (g)"
-                    name="weight"
-                    type="number"
-                    min={0}
-                    step={10}
-                    placeholder="250"
-                    helper="Le coût/shots est calculé automatiquement"
-                    value={coffeeForm.weight}
-                    onChange={updateCoffeeField('weight')}
-                    error={coffeeErrors.weight}
-                  />
-                  <FormField
-                    label="Prix payé (€)"
-                    name="price"
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    placeholder="14.5"
-                    value={coffeeForm.price}
-                    onChange={updateCoffeeField('price')}
-                    error={coffeeErrors.price}
-                  />
-                  <FormField
-                    label="Date d’achat"
-                    name="purchaseDate"
-                    type="date"
-                    value={coffeeForm.purchaseDate}
-                    onChange={updateCoffeeField('purchaseDate')}
-                  />
-                  <FormField
-                    label="Eau par défaut"
-                    name="water"
-                    as="select"
-                    value={coffeeForm.water}
-                    onChange={updateCoffeeField('water')}
-                    error={coffeeErrors.water}
-                  >
-                    {waterOptions.map((water) => (
-                      <option key={water} value={water}>{water}</option>
-                    ))}
-                  </FormField>
-                  <div className="form-actions">
-                    <button type="submit">Enregistrer le lot</button>
-                    <span className="hint">Validation immédiate, envoi API différé</span>
-                  </div>
-                </form>
-                <div className="card-list">
-                  {coffees.map((coffee) => (
-                    <article key={coffee.id} className="mini-card">
-                      <div className="mini-card__top">
-                        <div>
-                          <p className="eyebrow">{coffee.roaster}</p>
-                          <h3>{coffee.name}</h3>
-                        </div>
-                        <Pill tone={coffee.status === 'Approuvé' ? 'success' : coffee.status === 'À éviter' ? 'danger' : 'warning'}>
-                          {coffee.status}
-                        </Pill>
-                      </div>
-                      <dl className="stats">
-                        <div>
-                          <dt>Type</dt>
-                          <dd>{coffee.type}</dd>
-                        </div>
-                        <div>
-                          <dt>Coût/kg</dt>
-                          <dd>{formatCurrency(coffee.pricePerKg)}</dd>
-                        </div>
-                        <div>
-                          <dt>Coût / shot</dt>
-                          <dd>{formatCurrency(coffee.costPerShot)}</dd>
-                        </div>
-                        <div>
-                          <dt>Eau</dt>
-                          <dd>{coffee.water}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  ))}
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                id="journal-extraction"
-                title="Journal d&apos;extraction"
-                subtitle="Shot factuel"
-                action={draftState.shotStatus ? <Pill tone="success">{draftState.shotStatus}</Pill> : null}
-              >
-                <p className="section-description">
-                  Note uniquement les faits techniques : paramètres machine, ratio, eau. Un rappel sensoriel en mots aide à sécuriser
-                  la cohérence sans jamais afficher de chiffres d’analyse.
-                </p>
-                <form className="form-grid" onSubmit={handleShotSubmit}>
-                  <FormField
-                    label="Café utilisé"
-                    name="coffee"
-                    as="select"
-                    value={shotForm.coffee}
-                    onChange={updateShotField('coffee')}
-                    error={shotErrors.coffee}
-                  >
-                    <option value="" disabled>Choisir un café</option>
-                    {coffees.map((coffee) => (
-                      <option key={coffee.id} value={coffee.name}>{coffee.name}</option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    label="Boisson"
-                    name="beverage"
-                    as="select"
-                    value={shotForm.beverage}
-                    onChange={updateShotField('beverage')}
-                    error={shotErrors.beverage}
-                  >
-                    <option value="" disabled>Type d&apos;extraction</option>
-                    {beverageOptions.map((beverage) => (
-                      <option key={beverage} value={beverage}>{beverage}</option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    label="Mouture"
-                    name="grind"
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    placeholder="6.0"
-                    helper="Valeur machine, reste interne"
-                    value={shotForm.grind}
-                    onChange={updateShotField('grind')}
-                  />
-                  <FormField
-                    label="Dose (g)"
-                    name="dose"
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    placeholder="18.0"
-                    value={shotForm.dose}
-                    onChange={updateShotField('dose')}
-                    error={shotErrors.dose}
-                  />
-                  <FormField
-                    label="Poids en tasse (g)"
-                    name="yield"
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    placeholder="36"
-                    value={shotForm.yield}
-                    onChange={updateShotField('yield')}
-                    error={shotErrors.yield}
-                  />
-                  <FormField
-                    label="Temps (s)"
-                    name="time"
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    placeholder="28"
-                    value={shotForm.time}
-                    onChange={updateShotField('time')}
-                    error={shotErrors.time}
-                  />
-                  <FormField
-                    label="Eau"
-                    name="water"
-                    as="select"
-                    value={shotForm.water}
-                    onChange={updateShotField('water')}
-                    error={shotErrors.water}
-                  >
-                    {waterOptions.map((water) => (
-                      <option key={water} value={water}>{water}</option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    label="Repère sensoriel en mots"
-                    name="sensoryWords"
-                    placeholder="floral, velouté, doux"
-                    helper="Alimente l’API sans chiffres"
-                    value={shotForm.sensoryWords}
-                    onChange={updateShotField('sensoryWords')}
-                    datalistId="sensory-list"
-                    datalistOptions={sensoryWords}
-                  />
-                  <div className="chips">
-                    {waterOptions.map((water) => (
-                      <button
-                        key={water}
-                        type="button"
-                        className={`chip${shotForm.water === water ? ' chip--active' : ''}`}
-                        onClick={() => setShotForm((previous) => ({ ...previous, water }))}
-                      >
-                        {water}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="form-actions">
-                    <button type="submit">Enregistrer le shot</button>
-                    <span className="hint">Diagnostics ratio et suggestions restent textuels</span>
-                  </div>
-                </form>
-
-                <div className="card-list card-list--compact">
-                  {shots.map((shot) => (
-                    <article key={shot.id} className="mini-card mini-card--compact">
-                      <div className="mini-card__top">
-                        <div>
-                          <p className="eyebrow">{shot.beverage}</p>
-                          <h3>{shot.coffee}</h3>
-                        </div>
-                        <span className="timestamp">{new Date(shot.date).toLocaleDateString('fr-FR')}</span>
-                      </div>
-                      <dl className="stats stats--wrap">
-                        <div>
-                          <dt>Ratio</dt>
-                          <dd>{shot.dose}g → {shot.yield}g</dd>
-                        </div>
-                        <div>
-                          <dt>Temps</dt>
-                          <dd>{shot.time}s</dd>
-                        </div>
-                        <div>
-                          <dt>Eau</dt>
-                          <dd>{shot.water}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  ))}
-                </div>
-              </SectionCard>
+  const renderHistory = () => (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Journal & Dégustations</h2>
+      {[...db.shots].reverse().map((shot) => {
+        const cafe = db.cafes.find((c) => c.id === shot.cafeId);
+        return (
+          <div
+            key={shot.id}
+            className={`card p-4 flex justify-between items-center ${
+              !shot.tasted ? 'border-l-4 border-amber-500 bg-amber-50/10' : ''
+            }`}
+          >
+            <div>
+              <h4 className="font-bold text-[10px] uppercase text-stone-500">{cafe?.nom}</h4>
+              <p className="text-[11px] font-black mb-2">{shot.date}</p>
+              <p className="text-[10px] font-mono text-stone-400">
+                G:{shot.grind} | {shot.in}g &gt; {shot.out}g | {shot.time}s
+              </p>
             </div>
-
-            <div className="segmented-grid segmented-grid--two">
-              <SectionCard
-                id="degustation-verdict"
-                title="Dégustation & verdict"
-                subtitle="Sensoriel"
-                action={draftState.tastingStatus ? <Pill tone="success">{draftState.tastingStatus}</Pill> : null}
+            {!shot.tasted ? (
+              <button
+                type="button"
+                onClick={() => openTasteModal(shot.id)}
+                className="bg-amber-500 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase"
               >
-                <p className="section-description">
-                  Jugements exprimés avec des mots uniquement. Les réponses proviennent des endpoints d’analyse et restent traçables
-                  (eau, shot, arômes) sans affichage numérique.
-                </p>
-                <form className="form-grid" onSubmit={handleTastingSubmit}>
-                  <FormField
-                    label="Café dégusté"
-                    name="tastingCoffee"
-                    as="select"
-                    value={tastingForm.coffee}
-                    onChange={updateTastingField('coffee')}
-                    error={tastingErrors.coffee}
-                  >
-                    <option value="" disabled>Choisir un café</option>
-                    {coffees.map((coffee) => (
-                      <option key={coffee.id} value={coffee.name}>{coffee.name}</option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    label="Arômes dominants"
-                    name="aromas"
-                    placeholder="Fruits jaunes, miel"
-                    value={tastingForm.aromas}
-                    onChange={updateTastingField('aromas')}
-                    datalistId="aroma-list"
-                    datalistOptions={sensoryVocabulary.aromas}
-                    error={tastingErrors.aromas}
-                  />
-                  <FormField
-                    label="Texture"
-                    name="mouthfeel"
-                    placeholder="Fluide / rond / sirupeux"
-                    value={tastingForm.mouthfeel}
-                    onChange={updateTastingField('mouthfeel')}
-                    datalistId="mouthfeel-list"
-                    datalistOptions={sensoryVocabulary.mouthfeels}
-                    error={tastingErrors.mouthfeel}
-                  />
-                  <FormField
-                    label="Finale"
-                    name="finish"
-                    placeholder="Longueur harmonieuse"
-                    value={tastingForm.finish}
-                    onChange={updateTastingField('finish')}
-                    datalistId="finish-list"
-                    datalistOptions={sensoryVocabulary.finishes}
-                    error={tastingErrors.finish}
-                  />
-                  <FormField
-                    label="Verdict"
-                    name="verdict"
-                    as="select"
-                    value={tastingForm.verdict}
-                    onChange={updateTastingField('verdict')}
-                    error={tastingErrors.verdict}
-                  >
-                    <option value="" disabled>Choisir une issue</option>
-                    {sensoryVocabulary.verdicts.map((verdict) => (
-                      <option key={verdict} value={verdict}>{verdict}</option>
-                    ))}
-                  </FormField>
-                  <FormField
-                    label="Commentaire en mots"
-                    name="comment"
-                    as="textarea"
-                    rows={3}
-                    placeholder="Décision motivée, sans chiffres"
-                    value={tastingForm.comment}
-                    onChange={updateTastingField('comment')}
-                  />
-                  <FormField
-                    label="Eau utilisée"
-                    name="tastingWater"
-                    as="select"
-                    value={tastingForm.water}
-                    onChange={updateTastingField('water')}
-                    error={tastingErrors.water}
-                  >
-                    {waterOptions.map((water) => (
-                      <option key={water} value={water}>{water}</option>
-                    ))}
-                  </FormField>
-                  <div className="form-actions">
-                    <button type="submit">Enregistrer la dégustation</button>
-                    <span className="hint">La décision reste textuelle et traçable</span>
-                  </div>
-                </form>
-              </SectionCard>
+                Déguster
+              </button>
+            ) : (
+              <div className="text-right">
+                <span className="text-[9px] font-black uppercase text-amber-600 block">{shot.flavor}</span>
+                <span className="font-black">{shot.score}/10</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-              <SectionCard
-                title="Guides rapides"
-                subtitle="Simplification sans perdre le détail"
-              >
-                <div className="playbook">
-                  <div className="playbook__item">
-                    <p className="eyebrow">Étape 1</p>
-                    <h3>Déclare le lot</h3>
-                    <p className="muted">Enregistre le paquet, l’eau par défaut et laisse le calcul des coûts en interne.</p>
-                  </div>
-                  <div className="playbook__item">
-                    <p className="eyebrow">Étape 2</p>
-                    <h3>Log le shot</h3>
-                    <p className="muted">Paramètres machine, eau, ratio : tout reste textuel, prêt pour l’analyse.</p>
-                  </div>
-                  <div className="playbook__item">
-                    <p className="eyebrow">Étape 3</p>
-                    <h3>Saisis la dégustation</h3>
-                    <p className="muted">Mots-clés sensoriels + verdict humain, sans notation numérique affichée.</p>
-                  </div>
-                </div>
-                <ul className="bullet-list">
-                  <li>Chaque formulaire reste indépendant : moins de champs visibles en même temps.</li>
-                  <li>Les données avancées (coût, ratios) sont calculées en arrière-plan.</li>
-                  <li>Les analyses et classements sont regroupés dans les onglets dédiés.</li>
-                </ul>
-              </SectionCard>
+  const renderCafeDetail = () => {
+    if (!detailCafeId) return null;
+    const cafe = db.cafes.find((c) => c.id === detailCafeId);
+    if (!cafe) return null;
+    const stats = statsForCafe(detailCafeId);
+
+    return (
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => setView('ranking')}
+          className="text-[10px] font-black uppercase text-stone-400 mb-4 flex items-center gap-2"
+        >
+          <i className="fa-solid fa-arrow-left" /> Retour
+        </button>
+        <div className="card p-8 mb-2">
+          <h2 className="text-4xl font-black italic tracking-tighter mb-2">{cafe.nom}</h2>
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-widest border-b pb-6 mb-6">
+            {cafe.marque} • {cafe.origine || 'Sans Origine'}
+          </p>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-[9px] font-black text-stone-400 uppercase">Score Moyen</p>
+              <p className="text-2xl font-black text-amber-600">{stats.avg}/10</p>
             </div>
-          </>
-        ) : null}
-
-        {activeSegment === 'analyse' ? (
-          <div className="segmented-grid segmented-grid--two">
-            <SectionCard id="analyse" title="Analyses en direct" subtitle="API & signaux textuels">
-              <p className="section-description">
-                Les endpoints Barisense répondent en mots : verdicts, stabilité, eau. Tout est traçable sans afficher de chiffres.
-              </p>
-              <div className="analysis-grid">
-                {analysisFeed.length === 0 ? (
-                  <p className="muted">Connexion aux endpoints d’analyse en cours…</p>
-                ) : (
-                  analysisFeed.map((signal) => (
-                    <article key={signal.endpoint} className="mini-card analysis-card">
-                      <div className="mini-card__top">
-                        <div>
-                          <p className="eyebrow">{signal.label}</p>
-                          <h3>{signal.verdictWord}</h3>
-                        </div>
-                        <Pill tone="info">API {signal.endpoint}</Pill>
-                      </div>
-                      <p className="muted">{signal.trace}</p>
-                      <div className="chips">
-                        {signal.words.map((word) => (
-                          <span key={word} className="chip chip--ghost">{word}</span>
-                        ))}
-                      </div>
-                      <p className="analysis-focus">{signal.focus}</p>
-                    </article>
-                  ))
-                )}
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Verdicts expliqués" subtitle="Décisions textuelles">
-              <p className="section-description">
-                Les décisions sont lisibles en un coup d’œil : verdict, rappel eau, justification et trace des mots-clés utilisés.
-              </p>
-              <div className="verdict-grid">
-                {justifiedVerdicts.map((verdict) => (
-                  <article key={verdict.coffee} className="mini-card verdict">
-                    <div className="mini-card__top">
-                      <div>
-                        <p className="eyebrow">Verdict {verdict.beverage}</p>
-                        <h3>{verdict.coffee}</h3>
-                      </div>
-                      <Pill tone={verdict.verdict === 'Racheter' ? 'success' : verdict.verdict === 'À éviter' ? 'danger' : 'warning'}>
-                        {verdict.verdict}
-                      </Pill>
-                    </div>
-                    <ul className="verdict__list">
-                      {verdict.highlights.map((highlight) => (
-                        <li key={highlight}>{highlight}</li>
-                      ))}
-                    </ul>
-                    <div className="verdict__trace">
-                      <p className="muted">{verdict.justification}</p>
-                      <p className="trace">{verdict.trace}</p>
-                      <div className="chips">
-                        <span className="chip chip--ghost">{verdict.water}</span>
-                        {verdict.sensoryWords.map((word) => (
-                          <span key={word} className="chip chip--ghost">{word}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </SectionCard>
+            <div>
+              <p className="text-[9px] font-black text-stone-400 uppercase">Intensité</p>
+              <p className="text-2xl font-black italic">{cafe.intensite}/10</p>
+            </div>
           </div>
-        ) : null}
+        </div>
+        <div className="card p-6 bg-amber-50 border-amber-200">
+          <h4 className="text-[10px] font-black uppercase text-amber-600 mb-4">Meilleur réglage SAGE (Sweet Spot)</h4>
+          {stats.best ? (
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="bg-white p-2 rounded-lg">
+                <p className="text-[8px] font-bold text-stone-400">Grind</p>
+                <p className="font-black">{stats.best.grind}</p>
+              </div>
+              <div className="bg-white p-2 rounded-lg">
+                <p className="text-[8px] font-bold text-stone-400">In</p>
+                <p className="font-black">{stats.best.in}g</p>
+              </div>
+              <div className="bg-white p-2 rounded-lg">
+                <p className="text-[8px] font-bold text-stone-400">Out</p>
+                <p className="font-black">{stats.best.out}g</p>
+              </div>
+              <div className="bg-white p-2 rounded-lg">
+                <p className="text-[8px] font-bold text-stone-400">Temps</p>
+                <p className="font-black">{stats.best.time}s</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs italic text-stone-400 font-bold">Pas encore assez de données.</p>
+          )}
+        </div>
+      </div>
+    );
+  };
 
-        {activeSegment === 'synthese' ? (
-          <div className="segmented-grid segmented-grid--two">
-            <SectionCard id="synthese" title="Classements" subtitle="Synthèse sensorielle">
-              <p className="section-description">
-                Visualise rapidement les cafés qui sortent du lot selon la boisson et les critères sensoriels collectés en mots.
-              </p>
-              <div className="tabs" role="tablist" aria-label="Vues de classement">
-                {leaderboardSlices.map((slice) => (
-                  <button
-                    key={slice.id}
-                    className={`tab${slice.id === activeLeaderboard ? ' tab--active' : ''}`}
-                    onClick={() => setActiveLeaderboard(slice.id)}
-                    type="button"
-                    role="tab"
-                    aria-selected={slice.id === activeLeaderboard}
-                  >
-                    <span>{slice.label}</span>
-                    <span className="tab__caption">{slice.description}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="leaderboard">
-                {activeLeaderboardSlice.entries.map((entry) => (
-                  <article key={`${activeLeaderboard}-${entry.coffee}`} className="leaderboard__item">
-                    <div className="leaderboard__meta">
-                      <p className="eyebrow">{entry.beverage}</p>
-                      <h3>{entry.coffee}</h3>
-                      <p className="muted">{entry.tag}</p>
-                    </div>
-                    <Pill tone={entry.position === 1 ? 'success' : 'info'}>
-                      {positionToWord(entry.position)}
-                    </Pill>
-                  </article>
-                ))}
-              </div>
-            </SectionCard>
+  const renderCave = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-black italic uppercase tracking-tighter">Ma Cave</h2>
+        <button type="button" onClick={toggleForm} className="btn-action px-4 py-2 text-[10px] uppercase">
+          {formVisible ? 'Fermer' : '+ Ajouter'}
+        </button>
+      </div>
 
-            <SectionCard title="Tableau de bord condensé" subtitle="Accès rapide">
-              <div className="spotlight-grid">
-                <div className="spotlight">
-                  <p className="eyebrow">Référentiel</p>
-                  <h3>{coffees.length} cafés</h3>
-                  <p className="muted">Lots suivis avec eau par défaut et coûts internes.</p>
-                </div>
-                <div className="spotlight">
-                  <p className="eyebrow">Shots & dégustations</p>
-                  <h3>{shots.length} shots</h3>
-                  <p className="muted">Paramètres et mots-clés prêts à croiser avec l’eau.</p>
-                </div>
-                <div className="spotlight">
-                  <p className="eyebrow">Analyses</p>
-                  <h3>{justifiedVerdicts.length} verdicts</h3>
-                  <p className="muted">Décisions textuelles, sans notation visible.</p>
-                </div>
+      {formVisible ? (
+        <div id="form-cafe" className="card p-6 border-stone-900 border-2 shadow-xl">
+          <form className="space-y-4" onSubmit={saveCafe}>
+            <input
+              id="nc-nom"
+              placeholder="Nom du café (ex: Honduras)"
+              className="input-sage"
+              value={cafeForm.nom}
+              onChange={handleCafeChange('nom')}
+              required
+            />
+            <input
+              id="nc-marque"
+              placeholder="Torréfacteur (ex: Lomi)"
+              className="input-sage"
+              value={cafeForm.marque}
+              onChange={handleCafeChange('marque')}
+              required
+            />
+            <input
+              id="nc-origine"
+              placeholder="Origine"
+              className="input-sage"
+              value={cafeForm.origine}
+              onChange={handleCafeChange('origine')}
+            />
+            <div className="bg-stone-50 p-4 rounded-xl">
+              <label
+                className="text-[10px] font-black uppercase text-stone-400 block mb-2"
+                htmlFor="nc-intensite"
+              >
+                Intensité (1-10)
+              </label>
+              <input
+                type="range"
+                id="nc-intensite"
+                min={1}
+                max={10}
+                value={cafeForm.intensite}
+                onChange={handleCafeChange('intensite')}
+                className="w-full accent-stone-900"
+              />
+            </div>
+            <button type="submit" className="w-full btn-action py-4 uppercase text-xs">
+              Enregistrer
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4">
+        {db.cafes.length === 0 ? (
+          <div className="card p-12 text-center text-[10px] font-black uppercase text-stone-400">Aucun café en cave.</div>
+        ) : (
+          db.cafes.map((cafe) => (
+            <div
+              key={cafe.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setViewWithDetail('cafe-detail', cafe.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') setViewWithDetail('cafe-detail', cafe.id);
+              }}
+              className={`card p-6 flex justify-between items-center cursor-pointer border-l-8 ${
+                cafe.statut === 'ouvert' ? 'border-amber-500' : 'border-stone-200'
+              }`}
+            >
+              <div>
+                <h4 className="font-black text-lg italic">{cafe.nom}</h4>
+                <p className="text-[10px] font-bold text-stone-400 uppercase">{cafe.marque}</p>
               </div>
-              <ul className="bullet-list">
-                <li>Ouvre un classement, puis reviens à la collecte en un clic via les onglets.</li>
-                <li>Les mêmes données alimentent les sections analyses et synthèse : aucune saisie dupliquée.</li>
-                <li>Les cartes sont compactes pour rester lisibles sur mobile comme sur desktop.</li>
-              </ul>
-            </SectionCard>
+              {cafe.statut === 'stock' ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    markCafeOpen(cafe.id);
+                  }}
+                  className="bg-stone-900 text-white text-[9px] font-black px-4 py-2 rounded-lg uppercase shadow-lg"
+                >
+                  Ouvrir
+                </button>
+              ) : (
+                <i className="fa-solid fa-mug-saucer text-amber-500" />
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  const renderShot = () => {
+    if (!openCafe) {
+      return (
+        <div className="card p-12 text-center text-xs font-black uppercase text-stone-400">
+          Ouvrez un café dans la cave d'abord.
+        </div>
+      );
+    }
+
+    return (
+      <div className="card p-8 max-w-sm mx-auto shadow-2xl border-t-8 border-stone-900">
+        <h2 className="text-2xl font-black mb-8 italic uppercase text-center tracking-tighter">Extraction SAGE</h2>
+        <form className="space-y-4" onSubmit={saveShot}>
+          <div className="p-3 bg-stone-100 rounded-lg text-center font-bold text-xs uppercase mb-4">{openCafe.nom}</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[9px] font-black text-stone-400 uppercase ml-2">Grind</label>
+              <input
+                type="number"
+                id="s-grind"
+                placeholder="4"
+                className="input-sage"
+                value={shotForm.grind}
+                onChange={handleShotChange('grind')}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-stone-400 uppercase ml-2">Dose In</label>
+              <input
+                type="number"
+                id="s-in"
+                step="0.1"
+                placeholder="18.0"
+                className="input-sage"
+                value={shotForm.in}
+                onChange={handleShotChange('in')}
+                required
+              />
+            </div>
           </div>
-        ) : null}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[9px] font-black text-stone-400 uppercase ml-2">Dose Out</label>
+              <input
+                type="number"
+                id="s-out"
+                step="0.1"
+                placeholder="36.0"
+                className="input-sage"
+                value={shotForm.out}
+                onChange={handleShotChange('out')}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-stone-400 uppercase ml-2">Temps (s)</label>
+              <input
+                type="number"
+                id="s-time"
+                placeholder="28"
+                className="input-sage"
+                value={shotForm.time}
+                onChange={handleShotChange('time')}
+                required
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full btn-action py-5 uppercase font-black tracking-widest shadow-xl"
+          >
+            Enregistrer Shot
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  const renderAdmin = () => (
+    <div className="card p-8 space-y-8">
+      <h2 className="text-2xl font-black italic uppercase tracking-tighter text-stone-900">Synchronisation pCloud</h2>
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={exportDb}
+          className="w-full btn-action py-4 text-xs uppercase tracking-widest shadow-lg"
+        >
+          <i className="fa-solid fa-download mr-2" /> Télécharger JSON (Backup)
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          id="import-file"
+          className="hidden"
+          onChange={importDb}
+          accept="application/json"
+        />
+        <button
+          type="button"
+          onClick={() => importInputRef.current?.click()}
+          className="w-full bg-white border border-stone-200 py-4 rounded-xl text-xs font-black uppercase tracking-widest"
+        >
+          <i className="fa-solid fa-upload mr-2" /> Charger Fichier (Sync)
+        </button>
+      </div>
+      <div className="pt-6 border-t space-y-3">
+        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Zone de danger</p>
+        <button
+          type="button"
+          onClick={injectDemo}
+          className="w-full bg-blue-50 text-blue-600 py-3 rounded-xl text-[10px] font-black uppercase"
+        >
+          Injecter Démo (23 lignes)
+        </button>
+        <button
+          type="button"
+          onClick={resetAll}
+          className="w-full bg-red-50 text-red-600 py-3 rounded-xl text-[10px] font-black uppercase"
+        >
+          RAZ Totale
+        </button>
+      </div>
+    </div>
+  );
+
+  const activeView = () => {
+    if (view === 'hub') return renderHub();
+    if (view === 'cave') return renderCave();
+    if (view === 'shot') return renderShot();
+    if (view === 'ranking') return renderRanking();
+    if (view === 'history') return renderHistory();
+    if (view === 'admin') return renderAdmin();
+    if (view === 'cafe-detail') return renderCafeDetail();
+    return null;
+  };
+
+  const tasteShot = tasteShotId ? db.shots.find((shot) => shot.id === tasteShotId) : null;
+  const tasteCafe = tasteShot ? db.cafes.find((cafe) => cafe.id === tasteShot.cafeId) : null;
+
+  return (
+    <div className="min-h-screen pb-24">
+      <header className="glass sticky top-0 z-40 px-6 py-4 flex justify-between items-center border-bottom border-stone-100">
+        <button
+          type="button"
+          className="flex items-center gap-2"
+          onClick={() => setView('hub')}
+        >
+          <div className="w-8 h-8 bg-stone-900 rounded-lg flex items-center justify-center">
+            <i className="fa-solid fa-mug-hot text-amber-500 text-sm" />
+          </div>
+          <span className="font-black text-xs uppercase tracking-tighter">
+            MonExpresso <span className="text-amber-600">Elite</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('admin')}
+          className="text-stone-400 hover:text-stone-900 transition"
+          aria-label="Ouvrir la zone admin"
+        >
+          <i className="fa-solid fa-cloud" />
+        </button>
+      </header>
+
+      <main id="view-content" className="max-w-xl mx-auto p-4 space-y-6">
+        {activeView()}
       </main>
+
+      <nav className="tab-nav glass" role="navigation" aria-label="Navigation principale">
+        <button
+          type="button"
+          onClick={() => setView('hub')}
+          className={`nav-item ${view === 'hub' ? 'active' : ''}`}
+          id="nav-hub"
+        >
+          <i className="fa-solid fa-house" />Hub
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('cave')}
+          className={`nav-item ${view === 'cave' ? 'active' : ''}`}
+          id="nav-cave"
+        >
+          <i className="fa-solid fa-box-archive" />Cave
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('shot')}
+          className={`nav-item ${view === 'shot' ? 'active !text-amber-600' : '!text-amber-600'}`}
+          id="nav-shot"
+        >
+          <i className="fa-solid fa-circle-plus" />Shot
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('ranking')}
+          className={`nav-item ${view === 'ranking' ? 'active' : ''}`}
+          id="nav-ranking"
+        >
+          <i className="fa-solid fa-trophy" />Elite
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('history')}
+          className={`nav-item relative ${view === 'history' ? 'active' : ''}`}
+          id="nav-history"
+        >
+          <i className="fa-solid fa-clipboard-list" />Journal
+          <span id="badge-pending" className={`badge-count ${pendingShots.length === 0 ? 'hidden' : ''}`}>
+            {pendingShots.length}
+          </span>
+        </button>
+      </nav>
+
+      {tasteShot ? (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal__content">
+            <h2 className="text-2xl font-black italic mb-1">Feedback</h2>
+            <p className="text-[10px] text-stone-400 font-bold uppercase mb-6 tracking-widest">
+              {tasteCafe?.nom} | {tasteShot.time}s | {tasteShot.out}g
+            </p>
+            <form className="space-y-5" onSubmit={saveTaste}>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-2">
+                  Profil aromatique
+                </label>
+                <select
+                  className="input-sage"
+                  value={tasteFlavor}
+                  onChange={(event) => setTasteFlavor(event.target.value)}
+                >
+                  {FLAVOR_OPTIONS.map((flavor) => (
+                    <option key={flavor} value={flavor}>
+                      {flavor === 'Equilibré' ? 'Equilibré (Sweet Spot)' : flavor === 'Acide' ? 'Trop Acide (Sous-extrait)' : 'Trop Amer (Sur-extrait)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-stone-500 mb-2">
+                  Note Plaisir (1-10)
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  className="w-full accent-stone-900"
+                  value={tasteScore}
+                  onChange={(event) => setTasteScore(Number(event.target.value))}
+                />
+              </div>
+              <button type="submit" className="w-full btn-action py-4 uppercase text-xs tracking-widest">
+                Enregistrer
+              </button>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="w-full text-stone-400 font-bold text-[10px] uppercase"
+              >
+                Plus tard
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
